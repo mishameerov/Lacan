@@ -1,7 +1,7 @@
 2026-10-21: isolated Android ARM64 LiteRT 2.3.0 GPU-only encoder smoke
 Model SHA-256 f25e5972fe72048f67272e26d4badfe19d876e0fa19027cb2c6c0e0fc4da692b
 APK SHA-256 ca3c4710cd4daadbf991cb3efe7b33756ec03361d6ebf7b052050f234ccbcd21
-No speech input; one zero-feature encode; app force-stopped after20.54s.
+No speech input; one zero-feature encode; app force-stopped after 20.54 s.
 
 10-21 02:11:51.371  7218  7245 I litert  : [gpu_registry.cc:138] Dynamically loaded GPU accelerator(libLiteRtClGlAccelerator.so) registered.
 10-21 02:11:51.777  7218  7245 I litert  : [gpu_environment.cc:241] Created OpenCL device from provided device id and platform id.
