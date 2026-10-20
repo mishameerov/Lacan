@@ -64,6 +64,9 @@ class OverlayPresentationTest {
     @Test fun syntheticCompositionTransitionsAndScreenshots() {
         assumeTrue("Overlay permission must already be granted", Settings.canDrawOverlays(context))
         val device = UiDevice.getInstance(instrument)
+        // System settings can suppress overlays. Use a known app surface, not whichever
+        // protected page the user happened to leave in the foreground.
+        val scenario = androidx.test.core.app.ActivityScenario.launch(org.lacan.MainActivity::class.java)
         lateinit var controller: OverlayController
         val recording = ScreenState(
             recording = true, busy = true, notificationsGranted = true, readyToRecord = true,
@@ -73,7 +76,9 @@ class OverlayPresentationTest {
         instrument.runOnMainSync { controller = OverlayController(context) }
         try {
             instrument.runOnMainSync { controller.update(recording, true, true, false) }
-            assertTrue("Stop control must remain reachable", device.wait(Until.hasObject(By.desc("Остановить диктовку")), 3000))
+            val stopVisible = device.wait(Until.hasObject(By.desc("Остановить диктовку")), 3000)
+            device.takeScreenshot(File(context.filesDir, "overlay013-initial.png"))
+            assertTrue("Stop control must remain reachable", stopVisible)
             assertTrue("Cancel control must remain reachable", device.hasObject(By.desc("Отменить диктовку")))
             assertTrue("Recording timer must be visible", device.hasObject(By.descStartsWith("Длительность записи")))
             instrument.waitForIdleSync()
@@ -91,16 +96,22 @@ class OverlayPresentationTest {
 
             val preparing = ScreenState(busy = true, notificationsGranted = true)
             instrument.runOnMainSync { controller.update(preparing, true, true, false) }
-            assertTrue(device.wait(Until.hasObject(By.text("…")), 3000))
-            assertTrue(device.hasObject(By.desc("Отменить диктовку")))
+            instrument.runOnMainSync {
+                val control = OverlayController::class.java.getDeclaredField("recordButton").apply { isAccessible = true }
+                    .get(controller) as android.widget.FrameLayout
+                val spinner = control.getChildAt(0) as android.widget.ProgressBar
+                assertTrue("Preparing must use an animated indeterminate spinner", spinner.isIndeterminate)
+            }
+            assertTrue(device.wait(Until.hasObject(By.desc("Отменить диктовку")), 3000))
             assertFalse("Preparing has no central pill or timer", device.hasObject(By.descStartsWith("Длительность записи")))
             assertFalse(device.hasObject(By.text(preview.preview)))
             assertTrue(device.takeScreenshot(File(context.filesDir, "overlay012-preparing.png")))
 
             instrument.runOnMainSync { controller.update(preparing, true, true, true) }
-            assertTrue("Lock must hide every synthetic surface", device.wait(Until.gone(By.text("…")), 3000))
+            assertTrue("Lock must hide every synthetic surface", device.wait(Until.gone(By.desc("Отменить диктовку")), 3000))
         } finally {
             instrument.runOnMainSync { controller.close() }
+            scenario.close()
         }
     }
 

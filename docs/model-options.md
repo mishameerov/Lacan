@@ -1,21 +1,24 @@
 # Offline speech models
 
-The catalog offers ten choices. Downloads are separate from the APK. Sizes below are decimal MB of model files, not peak RAM usage. Installed models work offline; downloading requires a connection. Existing `whisper-tiny`, `whisper-base`, and `gigaam-v3` identifiers are preserved.
+The catalog offers thirteen choices. Downloads are separate from the APK. Sizes below are decimal MB of model files, not peak RAM usage. Installed models work offline; downloading requires a connection. Existing `whisper-tiny`, `whisper-base`, and `gigaam-v3` identifiers are preserved.
 
 | Model | Download | Language scope | Intended comparison |
 | --- | ---: | --- | --- |
 | Whisper base ONNX int8 | 160.6 MB | Multilingual, including Russian and English | Same sherpa-onnx runtime as GigaAM; CPU; phone compatibility/quality verification pending |
 | Whisper small ONNX int8 | 375.5 MB | Multilingual, including Russian and English | Larger ONNX comparison; CPU; phone compatibility/quality verification pending |
-| Whisper tiny Q5 | 32.2 MB | Multilingual, including Russian and English | Smallest download; baseline |
-| Whisper base Q5 | 59.7 MB | Multilingual, including Russian and English | Compact baseline |
-| Whisper small Q5 | 190.1 MB | Multilingual, including Russian and English | First larger model to try on the same recording |
-| Whisper medium Q5 | 539.2 MB | Multilingual, including Russian and English | Experimental; substantially more CPU work and RAM than tiny/base |
-| Whisper large-v3-turbo Q5 | 574.0 MB | Multilingual, including Russian and English | Experimental; compare speed and transcription against medium on the target device |
+| Whisper medium ONNX int8 | 946.1 MB | Multilingual, including Russian and English | Experimental; sherpa CPU; phone decoding/performance unverified |
+| Whisper large-v3 ONNX int8 | 1775.8 MB | Multilingual, including Russian and English | Full large-v3, 128 mel bins; experimental; high memory/CPU requirements |
+| Parakeet TDT 0.6B v3 ONNX int8 | 670.5 MB | 25 languages, including Russian and English | Experimental; automatic language selection; punctuation/capitalization; CC BY 4.0 |
+| Whisper tiny Q5 · legacy whisper.cpp | 32.2 MB | Multilingual, including Russian and English | Smallest download; baseline |
+| Whisper base Q5 · legacy whisper.cpp | 59.7 MB | Multilingual, including Russian and English | Compact baseline |
+| Whisper small Q5 · legacy whisper.cpp | 190.1 MB | Multilingual, including Russian and English | First larger model to try on the same recording |
+| Whisper medium Q5 · legacy whisper.cpp | 539.2 MB | Multilingual, including Russian and English | Experimental; substantially more CPU work and RAM than tiny/base |
+| Whisper large-v3-turbo Q5 · legacy whisper.cpp | 574.0 MB | Multilingual, including Russian and English | Experimental; compare speed and transcription against medium on the target device |
 | GigaAM v3 e2e CTC int8 | 319.9 MB | Russian; English/mixed speech unverified in this app | Existing compact GigaAM, with punctuation/text normalization |
 | GigaAM v3 e2e CTC FP32 | 886.0 MB | Russian; English/mixed speech unverified in this app | Experimental comparison without int8 weight quantization; more storage and RAM |
 | GigaAM Multilingual 600M int8 | 591.6 MB | Russian and English, plus Kazakh, Kyrgyz, Uzbek | Experimental larger GigaAM; lowercase output without punctuation |
 
-Start with short recordings and compare the same Russian and mixed Russian/English phrases. Larger models and removing quantization do not guarantee better results on a specific recording. No app-specific accuracy benchmark supports such a claim yet. Medium, turbo, FP32, and GigaAM 600M can be slow or exceed available memory on a phone; file size alone is not a RAM requirement. Full-precision Whisper small is intentionally omitted to keep this a short, useful catalog; small Q5, medium Q5, and turbo Q5 offer distinct larger choices.
+Start with short recordings and compare the same Russian and mixed Russian/English phrases. Larger models and removing quantization do not guarantee better results on a specific recording. No app-specific accuracy benchmark supports such a claim yet. Medium, turbo, FP32, and GigaAM 600M can be slow or exceed available memory on a phone; file size alone is not a RAM requirement. Existing Q5 models use the previous whisper.cpp experiment and remain available with their original installed IDs/downloads. The current ONNX alternatives use sherpa-onnx. Full large-v3 is distinct from large-v3-turbo; the ONNX large choice is the full model.
 
 Whisper models without `.en` are multilingual. The pinned whisper.cpp **v1.8.7** download script lists `small-q5_1`, `medium-q5_0`, and `large-v3-turbo-q5_0`, so these use the existing Whisper runtime/model format. This establishes format support, not device performance or quality. See the [v1.8.7 model documentation](https://github.com/ggml-org/whisper.cpp/blob/v1.8.7/models/README.md), [v1.8.7 download script](https://github.com/ggml-org/whisper.cpp/blob/v1.8.7/models/download-ggml-model.sh), and [upstream Whisper model information](https://github.com/openai/whisper#available-models-and-languages).
 
@@ -56,7 +59,7 @@ All eight catalog entries have pinned metadata; newly downloaded weights passed 
 
 ## Whisper through sherpa-onnx
 
-`whisper-base-onnx` and `whisper-small-onnx` use the already bundled sherpa-onnx 1.12.32 runtime and CPU provider, with separate int8 encoder and decoder files and a base64 token table. Existing whisper.cpp choices and installed model IDs remain available. Choosing a model selects its adapter automatically. These exports are multilingual (`base` and `small`, not `.en`). There is no evidence yet that this runtime improves accuracy or speed on the user's phone; compare the same audio.
+`whisper-base-onnx`, `whisper-small-onnx`, `whisper-medium-onnx`, and `whisper-large-v3-onnx` use the already bundled sherpa-onnx 1.12.32 runtime and CPU provider, with separate int8 encoder and decoder files and a base64 token table. Existing whisper.cpp choices and installed model IDs remain available. Choosing a model selects its adapter automatically. These exports are multilingual (`base`, `small`, `medium`, and full `large-v3`, not `.en`). There is no evidence yet that this runtime improves accuracy or speed on the user's phone; compare the same audio.
 
 The adapter uses Whisper transcription, greedy decoding, and 16 kHz input. Forced Russian/English is passed to the decoder; Auto passes an empty language so sherpa detects each window afresh. The [pinned upstream adapter](https://github.com/k2-fsa/sherpa-onnx/blob/v1.12.32/sherpa-onnx/csrc/offline-recognizer-whisper-impl.h) truncates audio near 30 seconds; this app splits any unexpectedly long call into windows of at most 25 seconds. Runtime VAD normally supplies shorter chunks. Window boundaries can affect words and context. Native sherpa decode has no immediate abort API: cancellation discards the result and skips remaining windows, and release waits for the current native call.
 
@@ -78,3 +81,38 @@ An opt-in `SherpaWhisperSmokeTest` decodes only the first six seconds of the pub
 ### A56 check for 0.1.2
 
 The complete base ONNX files were downloaded and SHA256 verified. A six-second public Russian fixture decoded successfully on Galaxy A56 with the new adapter (1925 ms inference in one run, excluding initialization). The returned text contains word errors: this verifies compatibility, not acceptable dictation quality or a controlled speed comparison. Small ONNX inference is still untested. The user's real-device feedback currently favors GigaAM v3 FP32 over the existing Q5 Whisper models.
+
+## Added ONNX models in 0.1.3
+
+Medium and full Large-v3 use the same Whisper adapter as base/small, with 80 and **128** mel bins respectively, 16 kHz audio, and transcription/greedy decoding. The pinned runtime also reads the Whisper frontend dimensions from model metadata. The int8 exports are self-contained; FP32 external `.weights` files are not required. Large-v3 is not turbo or distilled. New model downloads are optional and separate from the APK. Nothing here establishes successful decoding, speed, memory use, or dictation quality on the A56: only catalog/configuration contracts have been checked for these additions. No large model was downloaded and no native inference was run during this change.
+
+### Parakeet TDT adapter
+
+`parakeet-tdt-0-6b-v3` uses a dedicated `sherpa-transducer` adapter and the existing sherpa-onnx **1.12.32** AAR. Its three int8 ONNX files are passed to `OfflineTransducerModelConfig` (encoder/decoder/joiner), plus `tokens.txt`; `modelType` is `nemo_transducer`, greedy search and CPU, with 128-bin/16 kHz frontend configuration. The [pinned v3 exporter](https://github.com/k2-fsa/sherpa-onnx/blob/v1.12.32/scripts/nemo/parakeet-tdt-0.6b-v3/export_onnx.py) explicitly writes `feat_dim=128` metadata. It is not loaded as Nemo CTC or Whisper. The [pinned Kotlin API/example](https://github.com/k2-fsa/sherpa-onnx/blob/v1.12.32/sherpa-onnx/kotlin-api/OfflineRecognizer.kt) explicitly includes this v3 package; the [pinned Nemo implementation](https://github.com/k2-fsa/sherpa-onnx/blob/v1.12.32/sherpa-onnx/csrc/offline-transducer-nemo-model.cc) handles TDT durations/model metadata. These are interface/source checks, not native runtime verification.
+
+Parakeet is an offline recognizer operating on the app's captured segments. It determines language from audio; the app's forced Russian/English setting does not constrain this model. Cancellation discards a pending native result; synchronous native inference must finish before release. The [NVIDIA model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) describes 25 supported languages including Russian/English and punctuation/capitalization. Its published benchmarks and GPU memory guidance are not Android results.
+
+Parakeet TDT 0.6B v3 is by **NVIDIA**, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Source: [NVIDIA original weights/model card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3); ONNX conversion and int8 quantization distributed by [csukuangfj](https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/tree/2bda32ec70b097a55adaa07d9a7173915b43cc78). This application downloads that converted/quantized export without further weight modifications. Whisper remains MIT; the existing runtime remains Apache-2.0. See bundled third-party notices for attribution.
+
+### Immutable artifact metadata
+
+Public metadata was verified on 2026-10-21. ONNX SHA256/lengths are publisher LFS assertions; token files were fetched at these revisions and hashed locally. App installation verifies every file against the catalog. Only metadata and small token tables were fetched for this work.
+
+- Medium revision: [`8c31d28503847560985df21f90e14f0c736e075e`](https://huggingface.co/api/models/csukuangfj/sherpa-onnx-whisper-medium/revision/8c31d28503847560985df21f90e14f0c736e075e?blobs=true).
+- Full Large-v3 revision: [`2a6507094dd6020d939d78e3f1834a1d06267fca`](https://huggingface.co/api/models/csukuangfj/sherpa-onnx-whisper-large-v3/revision/2a6507094dd6020d939d78e3f1834a1d06267fca?blobs=true).
+- Parakeet int8 revision: [`2bda32ec70b097a55adaa07d9a7173915b43cc78`](https://huggingface.co/api/models/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/revision/2bda32ec70b097a55adaa07d9a7173915b43cc78?blobs=true).
+
+| Artifact | Exact bytes | SHA-256 |
+| --- | ---: | --- |
+| `medium-decoder.int8.onnx` | 571059257 | `595d00a338a365a7bfa0ca7f296cabc639583bef770ab6130df90f49a6412747` |
+| `medium-encoder.int8.onnx` | 374196283 | `1c54582b4d829de0089f6cb63bbbdb3bf7555398bacaf855fbecf1a84dfd193e` |
+| `medium-tokens.txt` | 816730 | `b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126` |
+| `large-v3-decoder.int8.onnx` | 1008265203 | `ebc6bfd88e162a46cb3edee8a7e727e1dcbc65cabecb19e2573695e4d495e1af` |
+| `large-v3-encoder.int8.onnx` | 766671985 | `d531cf17248acc43e8c09b472a0877055e770877857a5332fc1304b36534ec85` |
+| `large-v3-tokens.txt` | 816730 | `b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126` |
+| `decoder.int8.onnx` | 11845275 | `179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e` |
+| `encoder.int8.onnx` | 652184281 | `acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247` |
+| `joiner.int8.onnx` | 6355277 | `3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3` |
+| `tokens.txt` | 93939 | `d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d` |
+
+Totals: Medium **946072270** bytes; full Large-v3 **1775753918** bytes; Parakeet **670478772** bytes. Download size is not peak RAM use. JVM tests validate artifact routing, frontend dimensions, and path/configuration contracts; they do not load native models.

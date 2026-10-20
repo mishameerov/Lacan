@@ -189,7 +189,7 @@ private fun DictationContent(state: ScreenState, actions: UiActions, openModels:
 
         ContentCard(title = "Язык распознавания", supporting = "Выбор действует для следующей диктовки.") {
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("GigaAM v3 — русский с пунктуацией. Для английского и смешанной речи доступны Whisper и GigaAM Multilingual.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+            Text("GigaAM v3 — русский с пунктуацией. Whisper, GigaAM Multilingual и Parakeet поддерживают русский и английский. Parakeet определяет язык автоматически; выбор языка к ней не применяется.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
 
         if (state.models.none { it.selected && it.installed }) {
@@ -308,7 +308,7 @@ private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: 
         }
         ContentCard(title = "Язык", supporting = "Настройка применяется при следующем запуске распознавания.") {
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("GigaAM v3 — русский с пунктуацией. GigaAM Multilingual и Whisper поддерживают русский и английский. Для русской речи лучше явно выбрать «Русский».", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+            Text("GigaAM v3 — русский с пунктуацией. Whisper, GigaAM Multilingual и Parakeet поддерживают русский и английский. Для Whisper можно выбрать «Русский» явно; Parakeet всегда определяет язык автоматически.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
     }
 }

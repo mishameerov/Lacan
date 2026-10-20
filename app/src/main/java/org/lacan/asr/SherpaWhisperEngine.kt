@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun sherpaWhisperConfig(spec: ModelSpec, directory: File, language: String): OfflineRecognizerConfig =
     OfflineRecognizerConfig(
-        featConfig = FeatureConfig(sampleRate = 16000, featureDim = 80),
+        featConfig = FeatureConfig(sampleRate = 16000, featureDim = spec.featureDim),
         modelConfig = OfflineModelConfig(
             whisper = OfflineWhisperModelConfig(
                 encoder = File(directory, spec.files.single { it.name.endsWith("-encoder.int8.onnx") }.name).absolutePath,

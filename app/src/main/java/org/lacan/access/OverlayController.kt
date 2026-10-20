@@ -3,6 +3,7 @@ package org.lacan.access
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -16,11 +17,13 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.WindowInsets
-import android.widget.Button
+import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.TextView
 import org.lacan.LacanApp
+import org.lacan.R
 import org.lacan.LaunchDictationActivity
 import org.lacan.ui.ScreenState
 import kotlin.math.abs
@@ -41,7 +44,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
     private var previewScroll: HorizontalScrollView? = null
     private var waveformView: OverlayWaveformView? = null
     private var timerView: TextView? = null
-    private var recordButton: Button? = null
+    private var recordButton: View? = null
     private var controlLossReported = false
     private var anchorX = if (preferences.getFloat("x", 1f) < .5f) 0f else 1f
     private var anchorY = preferences.getFloat("y", .5f).coerceIn(0f, 1f)
@@ -96,7 +99,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
         val expanded = mode != "idle"
         val startX = ax
         val control = button(
-            when (mode) { "recording", "record-preparing" -> "■"; "preparing", "finalizing-preview" -> "…"; else -> "●" },
+            when (mode) { "recording", "record-preparing" -> R.drawable.overlay_stop; "preparing", "finalizing-preview" -> null; else -> R.drawable.overlay_microphone },
             when (mode) { "recording", "record-preparing" -> "Остановить диктовку"; "preparing", "finalizing-preview" -> "Отменить диктовку"; else -> "Начать диктовку" },
         ) {
             when (mode) { "recording", "record-preparing" -> runtime.stop(); "preparing", "finalizing-preview" -> runtime.cancel(); else -> start() }
@@ -108,7 +111,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
             val cancelX = if (mode in listOf("preparing", "record-preparing")) {
                 if (leftSide) (ax + size + gap).coerceAtMost(width - size) else (ax - size - gap).coerceAtLeast(0)
             } else if (leftSide) width - size else 0
-            addSurface(button("×", if (mode == "result") "Закрыть результат" else "Отменить диктовку") {
+            addSurface(button(R.drawable.overlay_close, if (mode == "result") "Закрыть результат" else "Отменить диктовку") {
                 if (mode == "result") runtime.dismissResult() else runtime.cancel()
             }, size, cancelX, ay, RED)
             if (mode !in listOf("preparing", "record-preparing")) {
@@ -163,34 +166,44 @@ class OverlayController(private val context: Context) : AutoCloseable {
             setTextColor(Color.WHITE)
             textSize = 15f
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), 0, dp(8), 0)
+            setPadding(0, 0, dp(8), 0)
             setSingleLine(true)
             if (result) {
                 contentDescription = "Скопировать результат"
                 setOnClickListener { runtime.copy(runtime.state.value.result) }
             }
         }
-        val scroll = HorizontalScrollView(context).apply {
+        // Keep the leading inset outside the scrollable text so it survives auto-scroll.
+        val leadingInset = dp(16).coerceAtMost(contentWidth)
+        val scroll = object : HorizontalScrollView(context) {
+            override fun getLeftFadingEdgeStrength() = if (canScrollHorizontally(-1)) 1f else 0f
+            override fun getRightFadingEdgeStrength() = 0f
+        }.apply {
             isHorizontalScrollBarEnabled = false
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(12))
             addView(text, FrameLayout.LayoutParams(-2, size))
         }
         previewView = text
         previewScroll = scroll
-        pill.addView(scroll, box(contentWidth, size))
+        pill.addView(scroll, box(contentWidth - leadingInset, size, leadingInset))
         waveformView = OverlayWaveformView(context).also { pill.addView(it, box(contentWidth, size)) }
-        val timer = TextView(context).apply {
-            setTextColor(Color.argb(235, 236, 243, 255))
-            textSize = 12f
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            gravity = Gravity.CENTER
-            if (result) {
-                this.text = "⧉"
+        val trailingView = if (result) {
+            icon(R.drawable.overlay_copy).apply {
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
                 contentDescription = "Скопировать результат"
                 setOnClickListener { runtime.copy(runtime.state.value.result) }
             }
+        } else {
+            TextView(context).apply {
+                setTextColor(Color.argb(235, 236, 243, 255))
+                textSize = 12f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                gravity = Gravity.CENTER
+                timerView = this
+            }
         }
-        if (!result) timerView = timer
-        pill.addView(timer, box(timerWidth.coerceAtMost(width), size, contentWidth))
+        pill.addView(trailingView, box(timerWidth.coerceAtMost(width), size, contentWidth))
         addSurface(pill, width, x, y, PILL)
         if (result) draggable(pill)
     }
@@ -208,22 +221,28 @@ class OverlayController(private val context: Context) : AutoCloseable {
         }
     }
 
-    private fun button(label: String, description: String, action: () -> Unit) = Button(context).apply {
-        text = label
-        contentDescription = description
-        textSize = if (label == "×") 30f else 20f
-        setTextColor(Color.WHITE)
-        typeface = Typeface.DEFAULT_BOLD
-        gravity = Gravity.CENTER
-        setPadding(0, 0, 0, 0)
-        minWidth = 0
-        minimumWidth = 0
-        minHeight = 0
-        minimumHeight = 0
-        stateListAnimator = null
-
-        setOnClickListener { action() }
+    private fun icon(resource: Int) = ImageView(context).apply {
+        setImageResource(resource)
+        scaleType = ImageView.ScaleType.CENTER
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
+
+    private fun button(resource: Int?, description: String, action: () -> Unit) =
+        object : FrameLayout(context) {
+            override fun getAccessibilityClassName(): CharSequence = "android.widget.Button"
+        }.apply {
+            contentDescription = description
+            isFocusable = false
+            val symbol = if (resource == null) {
+                ProgressBar(context, null, android.R.attr.progressBarStyleSmall).apply {
+                    isIndeterminate = true
+                    indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }
+            } else icon(resource)
+            addView(symbol, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+            setOnClickListener { action() }
+        }
 
     private fun start() {
         runCatching {
