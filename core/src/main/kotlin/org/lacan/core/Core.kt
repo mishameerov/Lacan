@@ -79,19 +79,21 @@ class AudioSpool(private val file: File) : AutoCloseable {
 }
 
 /**
- * Local-alpha energy fallback, NOT Silero VAD. 10 ms RMS frames use a fixed PCM
- * threshold of 500, retain 200 ms pre-roll and close after 600 ms quiet.
- * No PCM is retained here. Quiet/noisy microphones can need threshold tuning.
- * The caller should use the same ten-minute limit when writing to AudioSpool.
+ * Energy selects convenient cut points; it never decides whether audio is speech.
+ * Keep every nonzero window, including arbitrarily quiet words. Pause cuts need
+ * eight seconds of context; forced cuts stay within 20s with 750ms overlap.
+ * Only digital silence is skipped. A speech VAD can later avoid noise work without
+ * reintroducing volume-based loss. Sample payloads remain in AudioSpool.
  */
 class Segmenter {
     private var position = 0L
     private var frameSamples = 0
     private var frameEnergy = 0L
-    private var start: Long? = null
-    private var lastSpeechEnd = 0L
+    private var start = 0L
+    private var lastLoudEnd = 0L
+    private var lastSignalEnd = 0L
     private var overlap = 0
-    private var novelSpeech = false
+    private var novelSignal = false
     private var finished = false
 
     @Synchronized
@@ -102,6 +104,7 @@ class Segmenter {
         val available = minOf(count.toLong(), MAX_SESSION - position).toInt()
         repeat(available) { index ->
             val value = samples[index].toLong()
+            if (value != 0L) { novelSignal = true; lastSignalEnd = position + 1 }
             frameEnergy += value * value
             frameSamples++
             position++
@@ -125,36 +128,27 @@ class Segmenter {
 
     private fun processFrame(result: MutableList<AudioSegment>) {
         if (frameSamples == 0) return
-        val speech = frameEnergy >= 500L * 500 * frameSamples
-        if (speech) {
-            if (start == null) start = maxOf(0, position - frameSamples - 3200)
-            novelSpeech = true
-            lastSpeechEnd = position
-        }
+        if (frameEnergy >= 500L * 500 * frameSamples) lastLoudEnd = position
         frameSamples = 0
         frameEnergy = 0
-        val from = start ?: return
-        if (position - lastSpeechEnd >= 9600) {
-            if (novelSpeech) result += AudioSegment(from, position, overlap)
-            start = null
-            novelSpeech = false
-            overlap = 0
-        } else if (position - from >= MAX_WINDOW) {
-            if (novelSpeech) result += AudioSegment(from, position, overlap)
-            start = position - 12000
-            overlap = 12000
-            novelSpeech = false
+        val length = position - start
+        val pause = position - lastLoudEnd >= 9600
+        if (length >= MAX_WINDOW || (length >= 128000 && pause)) {
+            if (novelSignal) result += AudioSegment(start, position, overlap)
+            // Low volume is not proof of a real pause: overlap quiet words too.
+            val digitalSilence = position - lastSignalEnd >= 9600
+            val nextOverlap = if (novelSignal && (length >= MAX_WINDOW || !digitalSilence)) 12000 else 0
+            start = position - nextOverlap
+            overlap = nextOverlap
+            novelSignal = false
         }
     }
 
     private fun flush(result: MutableList<AudioSegment>) {
         processFrame(result)
-        val from = start
-        if (from != null && novelSpeech && position > from) {
-            result += AudioSegment(from, position, overlap)
-        }
-        start = null
-        novelSpeech = false
+        if (novelSignal && position > start) result += AudioSegment(start, position, overlap)
+        start = position
+        novelSignal = false
     }
 }
 

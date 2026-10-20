@@ -28,11 +28,14 @@ class AudioCapture(private val onSamples: (ShortArray, Int) -> Unit, private val
                 val buffer = ShortArray(1600)
                 while (running.get()) {
                     val count = audio.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
-                    if (!running.get()) break
-                    check(count > 0) { "Запись прервана: код $count" }
-                    // Android can silence a still-running recorder when another app owns the mic.
-                    check(audio.activeRecordingConfiguration?.isClientSilenced != true) { "Микрофон занят другим приложением" }
-                    onSamples(buffer, count)
+                    if (count > 0) {
+                        // A stop can race a successful partial read. Preserve its final phoneme.
+                        if (running.get()) check(audio.activeRecordingConfiguration?.isClientSilenced != true) { "Микрофон занят другим приложением" }
+                        onSamples(buffer, count)
+                    } else {
+                        if (!running.get()) break
+                        error("Запись прервана: код $count")
+                    }
                 }
             } catch (e: Exception) { if (running.get()) failure = e }
             finally {

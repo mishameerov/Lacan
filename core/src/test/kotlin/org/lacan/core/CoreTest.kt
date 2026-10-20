@@ -64,18 +64,38 @@ class CoreTest {
         assertTrue(segmenter.finish().isEmpty())
     }
 
-    @Test fun pauseEndsSpeechAndNextSpeechRetainsPreroll() {
+    @Test fun quietSpeechAndLeadingWordsAreNeverFilteredByVolume() {
         val segmenter = Segmenter()
-        assertTrue(segmenter.accept(ShortArray(16000)).isEmpty())
-        assertTrue(segmenter.accept(ShortArray(8000) { 2000 }).isEmpty())
-        val first = segmenter.accept(ShortArray(9600)).single()
-        assertEquals(AudioSegment(12800, 33600), first)
-        segmenter.accept(ShortArray(1000))
-        segmenter.accept(ShortArray(100) { 2000 })
+        segmenter.accept(ShortArray(16000) { 100 })
+        segmenter.accept(ShortArray(8000) { 2000 })
+        segmenter.accept(ShortArray(32000) { 80 })
+        assertEquals(AudioSegment(0, 56000), segmenter.finish().single())
+        val quiet = Segmenter()
+        quiet.accept(ShortArray(24000) { 10 })
+        assertEquals(AudioSegment(0, 24000), quiet.finish().single())
+    }
+
+    @Test fun naturalPausesKeepContextUntilEightSecondsAndDoNotLoseTail() {
+        val segmenter = Segmenter()
+        repeat(4) {
+            assertTrue(segmenter.accept(ShortArray(16000) { 2000 }).isEmpty())
+            val chunks = segmenter.accept(ShortArray(16000))
+            if (it < 3) assertTrue(chunks.isEmpty())
+            else assertEquals(AudioSegment(0, 128000), chunks.single())
+        }
+        segmenter.accept(ShortArray(17) { 70 })
+        assertEquals(AudioSegment(128000, 128017), segmenter.finish().single())
+    }
+
+    @Test fun quietSpeechAtBoundaryKeepsOverlapForWordsAcrossCuts() {
+        val segmenter = Segmenter()
+        val first = segmenter.accept(ShortArray(128000) { 100 }).single()
+        segmenter.accept(ShortArray(16000) { 100 })
         val tail = segmenter.finish().single()
-        assertTrue(tail.start <= 34600L)
-        assertEquals(34700L, tail.end)
-        assertEquals(0, tail.overlapSamples)
+        assertEquals(128000L, first.end)
+        assertEquals(first.end - 12000, tail.start)
+        assertEquals(12000, tail.overlapSamples)
+        assertEquals(144000L, tail.end)
     }
 
     @Test fun continuousSpeechCoversTenMinutesWithBoundedOverlapAndShortTail() {

@@ -4,7 +4,7 @@ import com.k2fsa.sherpa.onnx.*
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class SherpaEngine(directory: File) : AsrEngine {
+internal class SherpaEngine(model: File, tokens: File) : AsrEngine {
     private val cancelled = AtomicBoolean(false)
     private val recognizer = OfflineRecognizer(
         assetManager = null,
@@ -13,8 +13,8 @@ internal class SherpaEngine(directory: File) : AsrEngine {
             // is_giga_am metadata and configures its GigaAM-specific frontend.
             featConfig = FeatureConfig(sampleRate = 16000, featureDim = 64),
             modelConfig = OfflineModelConfig(
-                nemo = OfflineNemoEncDecCtcModelConfig(model = File(directory, "gigaam_v3_e2e_ctc_int8.onnx").absolutePath),
-                tokens = File(directory, "gigaam_v3_e2e_ctc_tokens.txt").absolutePath,
+                nemo = OfflineNemoEncDecCtcModelConfig(model = model.absolutePath),
+                tokens = tokens.absolutePath,
                 numThreads = 4, debug = false, provider = "cpu"
             ),
             decodingMethod = "greedy_search"

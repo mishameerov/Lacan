@@ -1,3 +1,2 @@
-<inset xmlns:android="http://schemas.android.com/apk/res/android" android:inset="25dp">
-    <bitmap android:src="@drawable/lacan_art" android:gravity="fill" android:filter="true" />
-</inset>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/lacan_art" android:gravity="fill" android:filter="true" />

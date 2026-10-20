@@ -9,7 +9,6 @@
 struct Engine {
     whisper_context * context;
     std::atomic<bool> cancelled{false};
-    std::string detectedLanguage;
 };
 static void quiet(ggml_log_level, const char *, void *) {}
 static bool abort_inference(void * data) { return static_cast<Engine *>(data)->cancelled.load(); }
@@ -39,8 +38,8 @@ Java_org_lacan_asr_WhisperEngine_nativeTranscribe(JNIEnv *env, jobject, jlong ha
     std::string selected(lang);
     env->ReleaseStringUTFChars(language, lang);
     if (selected.empty() || selected == "mixed") selected = "auto";
-    const bool automatic = selected == "auto";
-    if (automatic && !engine->detectedLanguage.empty()) selected = engine->detectedLanguage;
+    // Each window detects independently. Disposable previews must not set the
+    // language for authoritative final chunks (especially short/noisy previews).
     auto params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.n_threads = std::min(4u, std::max(1u, std::thread::hardware_concurrency()));
     params.language = selected.c_str();
@@ -57,10 +56,6 @@ Java_org_lacan_asr_WhisperEngine_nativeTranscribe(JNIEnv *env, jobject, jlong ha
     std::string text;
     if (!engine->cancelled.load()) {
         if (result != 0) { fail(env, "Whisper inference failed"); return nullptr; }
-        if (automatic && engine->detectedLanguage.empty()) {
-            const int id = whisper_full_lang_id(engine->context);
-            if (id >= 0) engine->detectedLanguage = whisper_lang_str(id);
-        }
         const int segments = whisper_full_n_segments(engine->context);
         for (int i = 0; i < segments; ++i) text += whisper_full_get_segment_text(engine->context, i);
     }
@@ -78,9 +73,4 @@ Java_org_lacan_asr_WhisperEngine_nativeFree(JNIEnv *, jobject, jlong handle) {
     auto * engine = reinterpret_cast<Engine *>(handle);
     whisper_free(engine->context);
     delete engine;
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_org_lacan_asr_WhisperEngine_nativeBeginSession(JNIEnv *, jobject, jlong handle) {
-    reinterpret_cast<Engine *>(handle)->detectedLanguage.clear();
 }

@@ -1,7 +1,6 @@
 package org.lacan.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,12 +12,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -28,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
@@ -42,116 +40,86 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-private val Ink = androidx.compose.ui.graphics.Color(0xFF17243A)
-private val MutedInk = androidx.compose.ui.graphics.Color(0xFF647084)
-private val Paper = androidx.compose.ui.graphics.Color(0xFFF5F2EC)
-private val CardPaper = androidx.compose.ui.graphics.Color(0xFFFFFEFB)
-private val Accent = androidx.compose.ui.graphics.Color(0xFFE9783B)
-private val SoftAccent = androidx.compose.ui.graphics.Color(0xFFFFE8D9)
-private val Line = androidx.compose.ui.graphics.Color(0xFFE5E0D7)
-private val Success = androidx.compose.ui.graphics.Color(0xFF3E775C)
+// Semantic aliases keep every surface, including dialogs, in the active theme.
+private val Ink @Composable get() = MaterialTheme.colorScheme.onSurface
+private val MutedInk @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+private val CardPaper @Composable get() = MaterialTheme.colorScheme.surfaceContainerLow
+private val Accent @Composable get() = MaterialTheme.colorScheme.primary
+private val SoftAccent @Composable get() = MaterialTheme.colorScheme.primaryContainer
+private val Line @Composable get() = MaterialTheme.colorScheme.outlineVariant
+private val Success @Composable get() = MaterialTheme.colorScheme.primary
 
 private enum class LacanTab(val title: String) {
     Dictation("Диктовка"), Models("Модели"), History("История"), Settings("Настройки")
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LacanScreen(state: ScreenState, actions: UiActions) {
-    var tab by remember { mutableStateOf(LacanTab.Dictation) }
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(LacanTab.Dictation) }
     var confirmClear by remember { mutableStateOf(false) }
+    val scrollStates = LacanTab.entries.map { rememberScrollState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val preferences = remember(context) { context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE) }
+    var appearance by remember { mutableStateOf(Appearance.entries.firstOrNull { it.name == preferences.getString("theme", null) } ?: Appearance.System) }
 
-    MaterialTheme(
-        colorScheme = MaterialTheme.colorScheme.copy(
-            primary = Accent,
-            onPrimary = androidx.compose.ui.graphics.Color.White,
-            secondary = Ink,
-            onSurface = Ink,
-            surface = CardPaper,
-            background = Paper
-        )
-    ) {
-        Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding(), color = Paper) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(org.lacan.R.drawable.lacan_art),
-                            contentDescription = "Lacan",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Lacan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
-                            Text("Голос остаётся на устройстве", style = MaterialTheme.typography.bodySmall, color = MutedInk)
-                        }
-                        Box(
-                            Modifier.size(10.dp).clip(CircleShape).background(if (state.enabled) Success else MutedInk)
-                                .semantics { contentDescription = if (state.enabled) "Lacan включён" else "Lacan выключен" }
+    LacanTheme(appearance) {
+        androidx.compose.material3.Scaffold(
+            topBar = {
+                androidx.compose.material3.TopAppBar(
+                    title = { Text(if (tab == LacanTab.Dictation) "Lacan" else tab.title) },
+                    colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                )
+            },
+            bottomBar = {
+                androidx.compose.material3.NavigationBar {
+                    LacanTab.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = tab == destination,
+                            onClick = { tab = destination },
+                            icon = { androidx.compose.material3.Icon(destinationIcon(destination.ordinal), contentDescription = null) },
+                            label = { Text(destination.title, maxLines = 1) }
                         )
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        LacanTab.entries.forEach { item ->
-                            val selected = item == tab
-                            TextButton(
-                                onClick = { tab = item },
-                                modifier = Modifier.height(48.dp).semantics { contentDescription = "Раздел ${item.title}${if (selected) ", выбран" else ""}" },
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = if (selected) Ink else MutedInk,
-                                    containerColor = if (selected) SoftAccent else androidx.compose.ui.graphics.Color.Transparent
-                                ),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text(item.title, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
-                            }
-                        }
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    when (tab) {
-                        LacanTab.Dictation -> DictationContent(state, actions) { tab = LacanTab.Models }
-                        LacanTab.Models -> ModelsContent(state, actions)
-                        LacanTab.History -> HistoryContent(state, actions, onClear = { confirmClear = true })
-                        LacanTab.Settings -> SettingsContent(state, actions)
-                    }
-                    Spacer(Modifier.height(12.dp))
                 }
             }
-        }
-    }
-
-    if (confirmClear) {
-        AlertDialog(
-            onDismissRequest = { confirmClear = false },
-            title = { Text("Очистить историю?") },
-            text = { Text("Все сохранённые расшифровки будут удалены с устройства.") },
-            confirmButton = {
-                TextButton(onClick = { actions.clearHistory(); confirmClear = false }, modifier = Modifier.height(48.dp)) {
-                    Text("Удалить всё", color = Accent, fontWeight = FontWeight.SemiBold)
+        ) { padding ->
+            Column(
+                modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollStates[tab.ordinal]).padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (tab) {
+                    LacanTab.Dictation -> DictationContent(state, actions) { tab = LacanTab.Models }
+                    LacanTab.Models -> ModelsContent(state, actions)
+                    LacanTab.History -> HistoryContent(state, actions, onClear = { confirmClear = true })
+                    LacanTab.Settings -> SettingsContent(state, actions, appearance) { value ->
+                        appearance = value
+                        preferences.edit().putString("theme", value.name).apply()
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmClear = false }, modifier = Modifier.height(48.dp)) { Text("Отмена") }
-            },
-            containerColor = CardPaper,
-            titleContentColor = Ink,
-            textContentColor = MutedInk
-        )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+        if (confirmClear) {
+            AlertDialog(
+                onDismissRequest = { confirmClear = false },
+                title = { Text("Очистить историю?") },
+                text = { Text("Все сохранённые расшифровки будут удалены с устройства.") },
+                confirmButton = {
+                    TextButton(onClick = { actions.clearHistory(); confirmClear = false }, modifier = Modifier.height(48.dp)) {
+                        Text("Удалить всё", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmClear = false }, modifier = Modifier.height(48.dp)) { Text("Отмена") }
+                }
+            )
+        }
     }
 }
 
@@ -159,39 +127,39 @@ fun LacanScreen(state: ScreenState, actions: UiActions) {
 private fun DictationContent(state: ScreenState, actions: UiActions, openModels: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Ink),
-            shape = RoundedCornerShape(24.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (state.recording) Accent else androidx.compose.ui.graphics.Color(0xFF91A0B6)))
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (state.recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary))
                     Spacer(Modifier.width(9.dp))
-                    Text(if (state.recording) "ИДЁТ ЗАПИСЬ" else if (state.busy) "ОБРАБОТКА" else "СОСТОЯНИЕ", style = MaterialTheme.typography.labelMedium, color = androidx.compose.ui.graphics.Color(0xFFCAD2DE), fontWeight = FontWeight.SemiBold)
+                    Text(if (state.recording) "ИДЁТ ЗАПИСЬ" else if (state.busy) "ОБРАБОТКА" else "СОСТОЯНИЕ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
                 }
-                Text(state.status, style = MaterialTheme.typography.titleMedium, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.SemiBold)
+                Text(state.status, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
                 if (!state.notificationsGranted) {
-                    Text("Разрешите уведомления в настройках: там доступны Стоп и Отмена, когда вы в другом приложении.", color = androidx.compose.ui.graphics.Color(0xFFD1D7E0), style = MaterialTheme.typography.bodyMedium)
+                    Text("Разрешите уведомления в настройках: там доступны Стоп и Отмена, когда вы в другом приложении.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
                 }
                 if (!state.microphoneGranted) {
-                    Text("Для записи нужен доступ к микрофону. Его можно включить в настройках разрешений.", color = androidx.compose.ui.graphics.Color(0xFFD1D7E0), style = MaterialTheme.typography.bodyMedium)
+                    Text("Для записи нужен доступ к микрофону. Его можно включить в настройках разрешений.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (state.recording) {
-                        Button(onClick = actions::stop, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                        Button(onClick = actions::stop, modifier = Modifier.weight(1f).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                             Text("Стоп", fontWeight = FontWeight.Bold)
                         }
-                        OutlinedButton(onClick = actions::cancel, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) {
+                        OutlinedButton(onClick = actions::cancel, modifier = Modifier.weight(1f).height(52.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
                             Text("Отмена")
                         }
                     } else if (state.busy) {
-                        OutlinedButton(onClick = actions::cancel, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = androidx.compose.ui.graphics.Color.White)) {
+                        OutlinedButton(onClick = actions::cancel, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
                             Text("Отменить обработку")
                         }
                     } else {
                         Button(
                             onClick = actions::start,
                             enabled = state.microphoneGranted && state.notificationsGranted && state.enabled && state.models.any { it.selected && it.installed },
-                            modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Accent)
                         ) { Text("Начать диктовку", fontWeight = FontWeight.Bold) }
                     }
@@ -213,20 +181,20 @@ private fun DictationContent(state: ScreenState, actions: UiActions, openModels:
                     Text(state.result, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Текст результата, можно выделить и скопировать" }, style = MaterialTheme.typography.bodyLarge, color = Ink)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { actions.copy(state.result) }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ink)) { Text("Копировать") }
-                    OutlinedButton(onClick = actions::dismissResult, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Закрыть") }
+                    Button(onClick = { actions.copy(state.result) }, modifier = Modifier.weight(1f).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Копировать") }
+                    OutlinedButton(onClick = actions::dismissResult, modifier = Modifier.weight(1f).height(48.dp)) { Text("Закрыть") }
                 }
             }
         }
 
         ContentCard(title = "Язык распознавания", supporting = "Выбор действует для следующей диктовки.") {
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("GigaAM настроена на русский язык. Распознавание смешанной русско-английской речи для неё пока не проверено.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+            Text("GigaAM v3 — русский с пунктуацией. Для английского и смешанной речи доступны Whisper и GigaAM Multilingual.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
 
         if (state.models.none { it.selected && it.installed }) {
             ContentCard(title = "Модель не выбрана", supporting = "Скачайте модель, чтобы начать локальное распознавание.") {
-                Button(onClick = openModels, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Выбрать модель") }
+                Button(onClick = openModels, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Выбрать модель") }
             }
         }
     }
@@ -235,7 +203,6 @@ private fun DictationContent(state: ScreenState, actions: UiActions, openModels:
 @Composable
 private fun ModelsContent(state: ScreenState, actions: UiActions) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Модели", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
         Text("Файлы моделей скачиваются по вашему запросу. Распознавание выполняется на устройстве.", style = MaterialTheme.typography.bodyMedium, color = MutedInk)
         if (state.models.isEmpty()) {
             EmptyCard("Каталог моделей пока пуст.")
@@ -244,7 +211,7 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
             val downloading = state.downloadingId == model.id
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.outlinedCardColors(containerColor = CardPaper),
                 border = androidx.compose.foundation.BorderStroke(if (model.selected) 1.5.dp else 1.dp, if (model.selected) Accent else Line)
             ) {
@@ -257,8 +224,10 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                         Spacer(Modifier.width(8.dp))
                         Text("${model.sizeMb} МБ", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Ink)
                     }
-                    if (model.title.contains("GigaAM", ignoreCase = true) || model.id.contains("giga", ignoreCase = true)) {
-                        Text("Для русского языка; смешанная речь с английским не проверена.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+                    if (model.sizeMb >= 200) {
+                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium) {
+                            Text("Требовательная модель · ${model.sizeMb} МБ на устройстве. Загрузка и распознавание могут занять больше времени.", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
                     }
                     if (downloading) {
                         val progress = state.downloadProgress.coerceIn(0f, 1f)
@@ -274,11 +243,11 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                                     if (model.selected) {
                                         Text("Выбрана", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Success, fontWeight = FontWeight.SemiBold)
                                     } else {
-                                        OutlinedButton(onClick = { actions.selectModel(model.id) }, enabled = !state.busy && !state.recording, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Выбрать") }
+                                        OutlinedButton(onClick = { actions.selectModel(model.id) }, enabled = !state.busy && !state.recording, modifier = Modifier.weight(1f).height(48.dp)) { Text("Выбрать") }
                                     }
                                     TextButton(onClick = { actions.removeModel(model.id) }, enabled = !state.busy && !state.recording && !model.selected, modifier = Modifier.height(48.dp)) { Text("Удалить") }
                                 }
-                                else -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                                else -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                                     Text("Скачать · ${model.sizeMb} МБ")
                                 }
                             }
@@ -295,7 +264,6 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("История", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
                 Text("Сохранённые расшифровки хранятся на устройстве.", style = MaterialTheme.typography.bodyMedium, color = MutedInk)
             }
             if (state.history.isNotEmpty()) TextButton(onClick = onClear, modifier = Modifier.height(48.dp)) { Text("Очистить") }
@@ -307,7 +275,7 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
                     Text(item.text, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Расшифровка, можно выделить и скопировать" }, style = MaterialTheme.typography.bodyLarge, color = Ink)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { actions.copy(item.text) }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) { Text("Копировать") }
+                    OutlinedButton(onClick = { actions.copy(item.text) }, modifier = Modifier.weight(1f).height(48.dp)) { Text("Копировать") }
                     TextButton(onClick = { actions.deleteHistory(item.id) }, modifier = Modifier.weight(1f).height(48.dp)) { Text("Удалить") }
                 }
             }
@@ -316,9 +284,15 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
 }
 
 @Composable
-private fun SettingsContent(state: ScreenState, actions: UiActions) {
+private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: Appearance, onAppearance: (Appearance) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Настройки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
+        ContentCard(title = "Оформление", supporting = "Системная тема следует настройкам Android.") {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Appearance.entries.forEach { item ->
+                    androidx.compose.material3.FilterChip(selected = appearance == item, onClick = { onAppearance(item) }, label = { Text(item.title) }, modifier = Modifier.height(48.dp))
+                }
+            }
+        }
         ContentCard(title = "Работа Lacan", supporting = "Когда приложение выключено, панель диктовки недоступна.") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (state.enabled) "Включено" else "Выключено", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = Ink)
@@ -334,7 +308,7 @@ private fun SettingsContent(state: ScreenState, actions: UiActions) {
         }
         ContentCard(title = "Язык", supporting = "Настройка применяется при следующем запуске распознавания.") {
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("Режим GigaAM ориентирован на русский. Смешанная русско-английская речь для него не проверена.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+            Text("GigaAM v3 — русский с пунктуацией. GigaAM Multilingual и Whisper поддерживают русский и английский. Для русской речи лучше явно выбрать «Русский».", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
     }
 }
@@ -360,19 +334,20 @@ private fun LanguagePicker(language: String, enabled: Boolean, onSelect: (String
     val options = listOf("auto" to "Авто", "ru" to "Русский", "en" to "English")
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { (value, label) ->
-            val selected = language == value
-            if (selected) {
-                Button(onClick = { onSelect(value) }, enabled = enabled, modifier = Modifier.height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Ink)) { Text(label) }
-            } else {
-                OutlinedButton(onClick = { onSelect(value) }, enabled = enabled, modifier = Modifier.height(48.dp), shape = RoundedCornerShape(14.dp)) { Text(label) }
-            }
+            androidx.compose.material3.FilterChip(
+                selected = language == value,
+                onClick = { onSelect(value) },
+                enabled = enabled,
+                label = { Text(label) },
+                modifier = Modifier.height(48.dp)
+            )
         }
     }
 }
 
 @Composable
 private fun ContentCard(title: String, supporting: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = CardPaper), shape = RoundedCornerShape(20.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = CardPaper), shape = MaterialTheme.shapes.large) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = Ink, fontWeight = FontWeight.Bold)
             if (supporting != null) Text(supporting, style = MaterialTheme.typography.bodySmall, color = MutedInk)
@@ -383,7 +358,7 @@ private fun ContentCard(title: String, supporting: String? = null, content: @Com
 
 @Composable
 private fun EmptyCard(message: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = CardPaper), shape = RoundedCornerShape(20.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = CardPaper), shape = MaterialTheme.shapes.large) {
         Text(message, modifier = Modifier.fillMaxWidth().padding(18.dp), style = MaterialTheme.typography.bodyMedium, color = MutedInk)
     }
 }

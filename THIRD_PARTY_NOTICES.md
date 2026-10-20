@@ -3,10 +3,13 @@
 Lacan is GPL-3.0-only. Models are optional user downloads and run locally.
 
 - whisper.cpp v1.8.7 (ggml-org), MIT, and bundled ggml: https://github.com/ggml-org/whisper.cpp/tree/v1.8.7
-- Whisper multilingual tiny/base weights, Q5_1 conversion from ggerganov/whisper.cpp revision 5359861c739e955e79d9a303bcbc70fb988958b1. Original OpenAI Whisper weights are MIT: https://github.com/openai/whisper
+- Whisper multilingual tiny/base/small/medium/large-v3-turbo weights, Q5_1/Q5_0 conversions from ggerganov/whisper.cpp revision 5359861c739e955e79d9a303bcbc70fb988958b1. Original OpenAI Whisper weights are MIT: https://github.com/openai/whisper
 - sherpa-onnx v1.12.32, Apache-2.0: https://github.com/k2-fsa/sherpa-onnx/tree/v1.12.32
 - ONNX Runtime 1.23.2 bundled in the sherpa Android AAR, MIT: https://github.com/microsoft/onnxruntime/tree/v1.23.2
 - GigaAM v3, GigaChat Team, MIT; Sherpa-compatible export by BahamutRU is declared MIT in its model card. Export revision b2176bb2acabc2a9983ae597e0a16cdb8ef33e77: https://huggingface.co/BahamutRU/GigaAM-v3-sherpa-onnx/tree/b2176bb2acabc2a9983ae597e0a16cdb8ef33e77 . Russian is the target; mixed English is unvalidated.
+
+- GigaAM Multilingual600M, GigaChat Team, MIT; sherpa-compatible int8 export by fussraider, MIT: https://huggingface.co/fussraider/GigaAM-Multilingual-sherpa-onnx-ctc/tree/9f5a77e8975211abe8511693accd3a63ee1e9f43 . Original model: https://huggingface.co/ai-sage/GigaAM-Multilingual .
+- Material navigation icon vector paths: Google Material Design Icons, Apache-2.0: https://github.com/google/material-design-icons .
 
 The application catalog pins each individual artifact size and SHA-256. No model repository Python code is executed.
 

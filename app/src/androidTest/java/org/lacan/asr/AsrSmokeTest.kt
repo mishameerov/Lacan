@@ -63,6 +63,42 @@ class AsrSmokeTest {
         }
     }
 
+    @Test fun autoLanguageIsIndependentAcrossWindows() = runBlocking {
+        val spec = ModelCatalog.models.single { it.id == "whisper-tiny" }
+        val repository = ModelRepository(context)
+        repository.installVerified(spec, File(fixtures, "test-models/${spec.id}"))
+        EngineFactory.create(spec, repository.directory(spec), "auto").use { engine ->
+            engine.beginSession("auto")
+            val english = engine.transcribe(readWave(File(fixtures, "test-audio/jfk.wav")), "auto")
+            assertTrue(english.contains("country", ignoreCase = true))
+            val russian = engine.transcribe(readWave(File(fixtures, "test-audio/gigaam-example.wav")), "auto")
+            record("whisper-auto-after-english", russian, 0)
+            assertTrue("An English preview must not force English on Russian final audio", russian.count { it in 'А'..'я' || it == 'ё' } > 15)
+        }
+    }
+
+    @Test fun selectedLargerModelRecognizesPublicFixtures() = runBlocking {
+        val id = InstrumentationRegistry.getArguments().getString("modelId")
+        org.junit.Assume.assumeTrue("Explicit model fixture run only", id != null)
+        val spec = ModelCatalog.models.single { it.id == id }
+        val repository = ModelRepository(context)
+        repository.installVerified(spec, File(fixtures, "test-models/${spec.id}"))
+        EngineFactory.create(spec, repository.directory(spec), "ru").use { engine ->
+            engine.beginSession("ru")
+            var russian = ""
+            val ruMs = measureTimeMillis { russian = engine.transcribe(readWave(File(fixtures, "test-audio/gigaam-example.wav")), "ru") }
+            record("${id}-ru", russian, ruMs)
+            assertTrue("Russian output must include reference words", russian.contains("похвал", true) && russian.contains("любви", true))
+            if (spec.engine == "whisper" || spec.id.contains("multilingual")) {
+                engine.beginSession("en")
+                var english = ""
+                val enMs = measureTimeMillis { english = engine.transcribe(readWave(File(fixtures, "test-audio/jfk.wav")), "en") }
+                record("${id}-en", english, enMs)
+                assertTrue("English output must include reference words", english.contains("country", true))
+            }
+        }
+    }
+
     private fun record(engine: String, text: String, millis: Long) {
         // This test handles only checked-in/public speech; production never logs recognized text.
         File(fixtures, "$engine-smoke-result.txt").writeText("inferenceMillis=$millis\n$text\n")
