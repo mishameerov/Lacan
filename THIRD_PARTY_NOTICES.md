@@ -6485,3 +6485,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Parakeet LiteRT GPU integration
+
+- LiteRT and LiteRT GPU 2.3.0, Google, Apache-2.0: https://github.com/google-ai-edge/LiteRT .
+- Audio frontend and TDT decoding adapted from Google LiteRT ASR sample, Apache-2.0, commit f1e415713f0354920c263c66e65ebd4b138c7e67: https://github.com/google-ai-edge/litert-samples/tree/f1e415713f0354920c263c66e65ebd4b138c7e67/samples/litert/speech_recognition . Changes include Lacan lifecycle, cancellation, windowing and local-only loading. Source attribution retained in adapted files.
+- NVIDIA Parakeet TDT 0.6B v3 converted/quantized by LiteRT community, stateful INT8 five-second artifact from revision 3ce205aa928f443f423214195cfe83ebe4802826. Original model CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ . Conversion and quantization are modifications; no NVIDIA endorsement. Tokenizer from NVIDIA revision 541d1f99c6b0c3cd0b11a95167540bb8edefd82b.
+- JLibrosa 1.1.8-SNAPSHOT, MIT (Deezer SA and project contributors): https://github.com/Subtitle-Synchronizer/jlibrosa . The SHA-256-pinned JAR bundles Commons Math (Apache-2.0), json-simple (Apache-2.0), and test classes. Lacan removes the bundled JUnit/Hamcrest classes from its runtime JAR to avoid dependency conflicts; original notices are retained in assets/licenses.

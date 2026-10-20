@@ -13,6 +13,7 @@ fetch() {
     mv "$temp" "$destination"
     trap - EXIT HUP INT TERM
 }
+fetch 'https://github.com/Subtitle-Synchronizer/jlibrosa/raw/master/binaries/jlibrosa-1.1.8-SNAPSHOT-jar-with-dependencies.jar' app/libs/jlibrosa-1.1.8-SNAPSHOT-jar-with-dependencies.jar dc6ec9537f6e1e4f300b4021e214cc7f22bc661161d3a64ecd57b6a113a6a077
 fetch 'https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.12.32/sherpa-onnx-1.12.32.aar' app/libs/sherpa-onnx-1.12.32.aar 43450d480eda70de929be82711851e8e91d82ea640f7d2296c1f6526fd792cad
 fetch 'https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.8.7' .tools/whisper-v1.8.7.tar.gz 0b988ba5053cfa720f6d399f3f21885b01c4222178be435ca2272d6872717554
 if [ ! -f .tools/whisper.cpp/CMakeLists.txt ]; then
@@ -21,6 +22,7 @@ if [ ! -f .tools/whisper.cpp/CMakeLists.txt ]; then
     mv .tools/whisper-unpack/whisper.cpp-1.8.7 .tools/whisper.cpp
     rmdir .tools/whisper-unpack
 fi
+python3 tools/prepare-jlibrosa.py
 # Preserve dependency license texts in the APK, in addition to the source archive.
 mkdir -p app/src/main/assets/licenses
 cp .tools/whisper.cpp/LICENSE app/src/main/assets/licenses/whisper.cpp-MIT.txt

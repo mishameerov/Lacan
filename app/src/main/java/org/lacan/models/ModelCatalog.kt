@@ -22,6 +22,10 @@ object ModelCatalog {
     private const val whisperLargeOnnx = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-large-v3/resolve/2a6507094dd6020d939d78e3f1834a1d06267fca/"
     private const val parakeet = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78/"
     val models = listOf(
+        ModelSpec("parakeet-tdt-gpu", "Parakeet TDT v3 · GPU · экспериментальная", "Русский, английский и ещё 23 языка. 615 МБ; LiteRT на GPU, без скрытого перехода на CPU. Первая загрузка может занять около 20 секунд. Для сравнения с ONNX CPU.", listOf(
+            ModelFile("parakeet.tflite", "https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3/resolve/3ce205aa928f443f423214195cfe83ebe4802826/parakeet_tdt_0.6b_v3_5s_i8_stateful.tflite", "334745b8bc7fd372b1c213516f0b6338bb827b1a2abb3e77ad35fe6fea5cd16b", 614261072),
+            ModelFile("tokenizer.json", "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/tokenizer.json", "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91", 1159960)
+        ), "litert-parakeet-gpu", featureDim = 128),
         ModelSpec("vosk-small-ru", "Vosk small RU 0.22 · CPU", "Русский, 46 МБ. Эксперимент для сравнения скорости и качества. Без пунктуации; смешанный английский не поддерживается. Язык определяется моделью.", listOf(
             ModelFile("vosk-model-small-ru-0.22.zip", "https://huggingface.co/rhasspy/vosk-models/resolve/e7ac2109d134b5f2404ba95389b2fb51916d4cab/ru/vosk-model-small-ru-0.22.zip", "961d5ff98a17f4aa6de69864d0aa71fa5bac682301d2b5d17a3f24c5c99a46d4", 46236750)
         ), "vosk"),

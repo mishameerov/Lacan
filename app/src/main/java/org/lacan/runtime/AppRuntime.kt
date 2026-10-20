@@ -165,10 +165,10 @@ class AppRuntime(private val context: Context) {
         warmJob = scope.launch {
             try {
                 engineMutex.withLock {
-                    if (!state.value.busy && state.value.enabled) { message("Загрузка модели в память…"); engineFor(spec, language); if (!state.value.busy) message("Готово к диктовке") }
+                    if (!state.value.busy && state.value.enabled) { message(if (spec.engine == "litert-parakeet-gpu") "Подготовка Parakeet на GPU…" else "Загрузка модели в память…"); engineFor(spec, language); if (!state.value.busy) message("Готово к диктовке") }
                 }
             } catch (_: CancellationException) { }
-            catch (_: Exception) { message("Не удалось загрузить модель. Попробуйте выбрать более лёгкую.") }
+            catch (_: Exception) { message(if (spec.engine == "litert-parakeet-gpu") "Не удалось запустить Parakeet на GPU. Выберите Parakeet ONNX CPU." else "Не удалось загрузить модель. Попробуйте выбрать более лёгкую.") }
         }
     }
     fun releaseIdleModel() {

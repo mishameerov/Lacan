@@ -56,3 +56,5 @@ tmp/
 app/libs/*.aar
 app/src/main/cpp/vendor/
 artifacts/
+
+app/libs/*.jar

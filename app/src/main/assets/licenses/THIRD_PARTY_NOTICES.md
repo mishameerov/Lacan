@@ -14,6 +14,10 @@ Lacan is GPL-3.0-only. Models are optional user downloads and run locally.
 - GigaAM Multilingual600M, GigaChat Team, MIT; sherpa-compatible int8 export by fussraider, MIT: https://huggingface.co/fussraider/GigaAM-Multilingual-sherpa-onnx-ctc/tree/9f5a77e8975211abe8511693accd3a63ee1e9f43 . Original model: https://huggingface.co/ai-sage/GigaAM-Multilingual .
 - Material navigation icon vector paths: Google Material Design Icons, Apache-2.0: https://github.com/google/material-design-icons .
 
+- Vosk Android 0.3.75, Alpha Cephei, Apache-2.0: https://github.com/alphacep/vosk-api . CPU recognition through its bundled Kaldi runtime.
+- JNA 5.18.1 (Vosk dependency), used under Apache-2.0 option: https://github.com/java-native-access/jna/tree/5.18.1 .
+- Vosk small Russian 0.22 model, Alpha Cephei, Apache-2.0: https://alphacephei.com/vosk/models . Pinned Rhasspy mirror revision e7ac2109d134b5f2404ba95389b2fb51916d4cab; archive SHA-256 checked against the official download. No model files modified.
+
 The application catalog pins each individual artifact size and SHA-256. No model repository Python code is executed.
 
 ## whisper.cpp / ggml MIT
@@ -6481,3 +6485,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Parakeet LiteRT GPU integration
+
+- LiteRT and LiteRT GPU 2.3.0, Google, Apache-2.0: https://github.com/google-ai-edge/LiteRT .
+- Audio frontend and TDT decoding adapted from Google LiteRT ASR sample, Apache-2.0, commit f1e415713f0354920c263c66e65ebd4b138c7e67: https://github.com/google-ai-edge/litert-samples/tree/f1e415713f0354920c263c66e65ebd4b138c7e67/samples/litert/speech_recognition . Changes include Lacan lifecycle, cancellation, windowing and local-only loading. Source attribution retained in adapted files.
+- NVIDIA Parakeet TDT 0.6B v3 converted/quantized by LiteRT community, stateful INT8 five-second artifact from revision 3ce205aa928f443f423214195cfe83ebe4802826. Original model CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ . Conversion and quantization are modifications; no NVIDIA endorsement. Tokenizer from NVIDIA revision 541d1f99c6b0c3cd0b11a95167540bb8edefd82b.
+- JLibrosa 1.1.8-SNAPSHOT, MIT (Deezer SA and project contributors): https://github.com/Subtitle-Synchronizer/jlibrosa . The SHA-256-pinned JAR bundles Commons Math (Apache-2.0), json-simple (Apache-2.0), and test classes. Lacan removes the bundled JUnit/Hamcrest classes from its runtime JAR to avoid dependency conflicts; original notices are retained in assets/licenses.
