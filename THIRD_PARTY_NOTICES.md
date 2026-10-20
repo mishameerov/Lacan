@@ -4,6 +4,7 @@ Lacan is GPL-3.0-only. Models are optional user downloads and run locally.
 
 - whisper.cpp v1.8.7 (ggml-org), MIT, and bundled ggml: https://github.com/ggml-org/whisper.cpp/tree/v1.8.7
 - Whisper multilingual tiny/base/small/medium/large-v3-turbo weights, Q5_1/Q5_0 conversions from ggerganov/whisper.cpp revision 5359861c739e955e79d9a303bcbc70fb988958b1. Original OpenAI Whisper weights are MIT: https://github.com/openai/whisper
+- Whisper multilingual base/small ONNX int8 conversions by csukuangfj, original OpenAI Whisper MIT weights: https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base/tree/bb53ee204431c90d314c1cc08d28d23e5b7927cc and https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/tree/8f3c18b358db4d1f2fc1eae49d75cd20989e4309 .
 - sherpa-onnx v1.12.32, Apache-2.0: https://github.com/k2-fsa/sherpa-onnx/tree/v1.12.32
 - ONNX Runtime 1.23.2 bundled in the sherpa Android AAR, MIT: https://github.com/microsoft/onnxruntime/tree/v1.23.2
 - GigaAM v3, GigaChat Team, MIT; Sherpa-compatible export by BahamutRU is declared MIT in its model card. Export revision b2176bb2acabc2a9983ae597e0a16cdb8ef33e77: https://huggingface.co/BahamutRU/GigaAM-v3-sherpa-onnx/tree/b2176bb2acabc2a9983ae597e0a16cdb8ef33e77 . Russian is the target; mixed English is unvalidated.

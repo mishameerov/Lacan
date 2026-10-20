@@ -1,9 +1,11 @@
 # Offline speech models
 
-The catalog offers eight choices. Downloads are separate from the APK. Sizes below are decimal MB of model files, not peak RAM usage. Installed models work offline; downloading requires a connection. Existing `whisper-tiny`, `whisper-base`, and `gigaam-v3` identifiers are preserved.
+The catalog offers ten choices. Downloads are separate from the APK. Sizes below are decimal MB of model files, not peak RAM usage. Installed models work offline; downloading requires a connection. Existing `whisper-tiny`, `whisper-base`, and `gigaam-v3` identifiers are preserved.
 
 | Model | Download | Language scope | Intended comparison |
 | --- | ---: | --- | --- |
+| Whisper base ONNX int8 | 160.6 MB | Multilingual, including Russian and English | Same sherpa-onnx runtime as GigaAM; CPU; phone compatibility/quality verification pending |
+| Whisper small ONNX int8 | 375.5 MB | Multilingual, including Russian and English | Larger ONNX comparison; CPU; phone compatibility/quality verification pending |
 | Whisper tiny Q5 | 32.2 MB | Multilingual, including Russian and English | Smallest download; baseline |
 | Whisper base Q5 | 59.7 MB | Multilingual, including Russian and English | Compact baseline |
 | Whisper small Q5 | 190.1 MB | Multilingual, including Russian and English | First larger model to try on the same recording |
@@ -51,3 +53,28 @@ All eight catalog entries have pinned metadata; newly downloaded weights passed 
 - SmallQ5 loaded and recognized most of the public Russian poem, but omitted its final short phrase; this is not a full accuracy pass. The compatibility smoke assertion now checks distinctive words in the main passage rather than requiring the clipped final phrase; it is not an accuracy acceptance test. English small was not reached in that initial run.
 - Medium test was explicitly stopped by the user to reduce computer load. Its instrumentation reports “Process crashed” because the test process was deliberately stopped, not because a native crash was diagnosed.
 - Medium, turbo, GigaAM FP32 and Multilingual600M remain experimental and require actual A56 decoding/performance/quality validation. The user requested deferring heavy emulator inference to the phone. No claim is made that these models already work well on A56.
+
+## Whisper through sherpa-onnx
+
+`whisper-base-onnx` and `whisper-small-onnx` use the already bundled sherpa-onnx 1.12.32 runtime and CPU provider, with separate int8 encoder and decoder files and a base64 token table. Existing whisper.cpp choices and installed model IDs remain available. Choosing a model selects its adapter automatically. These exports are multilingual (`base` and `small`, not `.en`). There is no evidence yet that this runtime improves accuracy or speed on the user's phone; compare the same audio.
+
+The adapter uses Whisper transcription, greedy decoding, and 16 kHz input. Forced Russian/English is passed to the decoder; Auto passes an empty language so sherpa detects each window afresh. The [pinned upstream adapter](https://github.com/k2-fsa/sherpa-onnx/blob/v1.12.32/sherpa-onnx/csrc/offline-recognizer-whisper-impl.h) truncates audio near 30 seconds; this app splits any unexpectedly long call into windows of at most 25 seconds. Runtime VAD normally supplies shorter chunks. Window boundaries can affect words and context. Native sherpa decode has no immediate abort API: cancellation discards the result and skips remaining windows, and release waits for the current native call.
+
+Public file metadata was verified on 2026-10-21 through the [base metadata API](https://huggingface.co/api/models/csukuangfj/sherpa-onnx-whisper-base/revision/bb53ee204431c90d314c1cc08d28d23e5b7927cc?blobs=true) and [small metadata API](https://huggingface.co/api/models/csukuangfj/sherpa-onnx-whisper-small/revision/8f3c18b358db4d1f2fc1eae49d75cd20989e4309?blobs=true). ONNX hashes are the publisher's LFS SHA256 metadata. Both token files were fetched at these immutable revisions and hashed locally. Weight downloads are verified by the app before installation.
+
+| ONNX artifact | Exact bytes | SHA-256 |
+| --- | ---: | --- |
+| `base-encoder.int8.onnx` | 29120534 | `0b8fb1304b6109976038efff5ace81720e00386f3ff6b54ee8c75291ca0a1e11` |
+| `base-decoder.int8.onnx` | 130672026 | `9759d217388a01b3a4c7c15533201067b48ae819c4daafc8624e64b9409dc02d` |
+| `small-encoder.int8.onnx` | 112442483 | `4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9` |
+| `small-decoder.int8.onnx` | 262226114 | `acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee` |
+| `base-tokens.txt` / `small-tokens.txt` (each) | 816730 | `b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126` |
+
+Base total: 160609290 bytes. Small total: 375485327 bytes. These are storage sizes, not peak memory requirements. The exporter repositories do not declare a separate model-card license; the underlying [OpenAI Whisper weights/code are MIT licensed](https://github.com/openai/whisper#license), and [sherpa-onnx is Apache-2.0](https://github.com/k2-fsa/sherpa-onnx/blob/v1.12.32/LICENSE). See the [official sherpa Whisper documentation](https://k2-fsa.github.io/sherpa/onnx/pretrained_models/whisper/index.html).
+
+An opt-in `SherpaWhisperSmokeTest` decodes only the first six seconds of the public Russian GigaAM fixture on a physical device. It is a native compatibility check, not an accuracy/performance acceptance test. No heavy emulator or desktop inference was run for this addition.
+
+
+### A56 check for 0.1.2
+
+The complete base ONNX files were downloaded and SHA256 verified. A six-second public Russian fixture decoded successfully on Galaxy A56 with the new adapter (1925 ms inference in one run, excluding initialization). The returned text contains word errors: this verifies compatibility, not acceptable dictation quality or a controlled speed comparison. Small ONNX inference is still untested. The user's real-device feedback currently favors GigaAM v3 FP32 over the existing Q5 Whisper models.

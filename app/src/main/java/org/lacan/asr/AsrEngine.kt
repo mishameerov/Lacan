@@ -11,6 +11,7 @@ interface AsrEngine : AutoCloseable {
 object EngineFactory {
     fun create(spec: ModelSpec, directory: File, language: String): AsrEngine = when (spec.engine) {
         "whisper" -> WhisperEngine(File(directory, spec.files.single().name))
+        "sherpa-whisper" -> SherpaWhisperEngine(spec, directory, language)
         "sherpa" -> SherpaEngine(
             File(directory, spec.files.single { it.name.endsWith(".onnx") }.name),
             File(directory, spec.files.single { it.name.endsWith("_tokens.txt") }.name)

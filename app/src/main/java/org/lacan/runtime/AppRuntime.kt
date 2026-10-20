@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.*
 import android.content.pm.PackageManager
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -24,6 +25,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /** App-scoped ownership: UI never owns microphone/model lifetime. All inference is serialized. */
 class AppRuntime(private val context: Context) {
@@ -46,6 +48,12 @@ class AppRuntime(private val context: Context) {
     private class Session(val token: Long, val spec: ModelSpec, val language: String, val spool: AudioSpool) {
         val id = UUID.randomUUID().toString()
         val started = System.currentTimeMillis()
+        val monotonicStarted = SystemClock.elapsedRealtime()
+        private val stoppedAt = AtomicLong(0L)
+        fun stopElapsed(): Long {
+            stoppedAt.compareAndSet(0L, SystemClock.elapsedRealtime())
+            return (stoppedAt.get() - monotonicStarted).coerceAtLeast(0)
+        }
         val cancelled = AtomicBoolean(false)
         val segmenter = Segmenter()
         val queue = Channel<AudioSegment>(Channel.UNLIMITED) // small descriptors, never audio arrays
@@ -72,14 +80,21 @@ class AppRuntime(private val context: Context) {
         mutable.update { it.copy(microphoneGranted = granted(Manifest.permission.RECORD_AUDIO),
             notificationsGranted = granted(Manifest.permission.POST_NOTIFICATIONS) && context.getSystemService(NotificationManager::class.java).areNotificationsEnabled() && context.getSystemService(NotificationManager::class.java).getNotificationChannel("dictation")?.importance != NotificationManager.IMPORTANCE_NONE, overlayGranted = Settings.canDrawOverlays(context),
             accessibilityEnabled = LacanAccessibilityService.instance != null) }
+        refreshReadiness()
+    }
+    private fun refreshReadiness() {
+        mutable.update { it.copy(readyToRecord = it.enabled && it.microphoneGranted && it.notificationsGranted &&
+            engine != null && engineKey == "$selected:${it.language}") }
     }
     private fun refreshModels() {
         mutable.update { it.copy(models = ModelCatalog.models.map { m -> ModelCard(m.id, m.title, m.description,
             ((m.totalBytes + 999999) / 1000000).toInt(), repository.isInstalled(m), m.id == selected) }) }
+        refreshReadiness()
     }
     fun setEnabled(value: Boolean) {
         if (state.value.busy) return
         prefs.edit().putBoolean("enabled", value).apply(); mutable.update { it.copy(enabled = value) }
+        refreshReadiness()
         if (value) warmModel() else releaseIdleModel()
     }
     fun setLanguage(value: String) {
@@ -132,16 +147,19 @@ class AppRuntime(private val context: Context) {
             // Publish the native handle even if the waiting UI job is cancelled: otherwise it leaks.
             withContext(NonCancellable + nativeDispatcher) { engine = EngineFactory.create(spec, repository.directory(spec), language) }
             engineKey = key
+            refreshReadiness()
         }
         return checkNotNull(engine)
     }
     private suspend fun closeEngine() {
         withContext(nativeDispatcher) { engine?.close(); engine = null; engineKey = null }
+        refreshReadiness()
     }
     private fun warmModel() {
         if (!state.value.enabled || state.value.busy) return
         val spec = ModelCatalog.models.find { it.id == selected } ?: return
         if (!repository.isInstalled(spec)) return
+        refreshReadiness()
         val language = state.value.language
         warmJob?.cancel()
         warmJob = scope.launch {
@@ -168,11 +186,18 @@ class AppRuntime(private val context: Context) {
         val s = try { Session(token, spec, state.value.language, AudioSpool(File(context.cacheDir, "audio/${UUID.randomUUID()}.pcm"))) }
         catch (_: Exception) { gate.finish(token); message("Нет места для временной записи"); onFinished(); return }
         current = s
-        mutable.update { it.copy(busy = true, recording = false, preview = "", result = "", status = "Запуск микрофона…") }
+        mutable.update { it.copy(busy = true, recording = false, preview = "", result = "", audioLevel = 0f,
+            recordingStartedAtMillis = s.monotonicStarted, recordingElapsedMillis = 0L, status = "Запуск микрофона…") }
         val capture = AudioCapture(onSamples = { buffer, count ->
             val remaining = (9_600_000L - s.spool.sampleCount).coerceAtLeast(0).toInt()
             val n = minOf(count, remaining)
             if (n > 0) {
+                var energy = 0.0
+                for (i in 0 until n) { val value = buffer[i].toDouble() / 32768.0; energy += value * value }
+                // Log-scale meter for display only; never filters or normalizes the ASR audio.
+                val rms = kotlin.math.sqrt(energy / n)
+                val level = ((20 * kotlin.math.log10(rms.coerceAtLeast(0.00001)) + 60) / 60).toFloat().coerceIn(0f, 1f)
+                mutable.update { if (current === s && s.recording) it.copy(audioLevel = level) else it }
                 s.spool.append(buffer, n)
                 s.segmenter.accept(buffer, n).forEach { check(s.queue.trySend(it).isSuccess) }
             }
@@ -182,7 +207,7 @@ class AppRuntime(private val context: Context) {
             s.recording = false
             s.segmenter.finish().forEach { s.queue.trySend(it) }
             s.queue.close(); s.captureEnded.complete(Unit)
-            mutable.update { if (current === s) it.copy(recording = false, status = "Завершаю распознавание…") else it }
+            mutable.update { if (current === s) it.copy(recording = false, audioLevel = 0f, recordingElapsedMillis = s.stopElapsed(), status = "Завершаю распознавание…") else it }
         })
         s.capture = capture
         try {
@@ -190,7 +215,7 @@ class AppRuntime(private val context: Context) {
             mutable.update { it.copy(recording = true, status = "Слушаю · всё остаётся на устройстве") }
         } catch (_: Exception) {
             gate.finish(token); current = null; s.spool.delete()
-            mutable.update { it.copy(busy = false, recording = false, status = "Микрофон недоступен. Проверьте разрешение и другие приложения.") }
+            mutable.update { it.copy(busy = false, recording = false, audioLevel = 0f, recordingStartedAtMillis = 0L, recordingElapsedMillis = 0L, status = "Микрофон недоступен. Проверьте разрешение и другие приложения.") }
             onFinished(); return
         }
         scope.launch { process(s, onFinished) }
@@ -200,14 +225,14 @@ class AppRuntime(private val context: Context) {
         if (reason !in listOf("user", "limit")) s.reason = reason
         if (!s.recording) return
         s.reason = reason; s.recording = false; gate.stop(s.token); s.capture?.stop()
-        mutable.update { it.copy(recording = false, status = "Завершаю распознавание…") }
+        mutable.update { it.copy(recording = false, audioLevel = 0f, recordingElapsedMillis = s.stopElapsed(), status = "Завершаю распознавание…") }
     }
     fun cancel() {
         val s = current ?: return
         s.cancelled.set(true); gate.cancel(s.token); s.capture?.stop()
         // Native cancel only sets an atomic flag; actual close stays on serialized worker.
         engine?.cancel()
-        mutable.update { it.copy(recording = false, preview = "", status = "Отменяю…") }
+        mutable.update { it.copy(recording = false, audioLevel = 0f, recordingElapsedMillis = s.stopElapsed(), preview = "", status = "Отменяю…") }
     }
     private suspend fun process(s: Session, onFinished: () -> Unit) {
         val assembler = TranscriptAssembler()
@@ -282,7 +307,7 @@ class AppRuntime(private val context: Context) {
                 try { s.spool.delete() } catch (_: Exception) { message("Не удалось удалить временный файл; он будет очищен при следующем запуске") }
                 finally {
                     gate.finish(s.token); if (current === s) current = null
-                    mutable.update { it.copy(busy = false, recording = false, preview = "") }; onFinished()
+                    mutable.update { it.copy(busy = false, recording = false, audioLevel = 0f, preview = "") }; onFinished()
                 }
             }
         }
