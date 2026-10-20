@@ -1,0 +1,51 @@
+# macOS and local editor files
+.DS_Store
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Gradle, Android SDK paths, native builds and generated outputs
+.gradle/
+.kotlin/
+**/build/
+.cxx/
+.externalNativeBuild/
+local.properties
+captures/
+*.apk
+*.aab
+*.apks
+
+# Signing material, credentials and local environment
+*.jks
+*.keystore
+keystore.properties
+key.properties
+secrets.properties
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Downloaded model weights and large generated artifacts
+models/downloaded/
+*.gguf
+*.ggml
+*.onnx
+*.onnx.data
+*.safetensors
+*.pt
+*.pth
+ggml-*.bin
+
+# Private recordings, local history and transient diagnostics
+recordings/
+dictation-history/
+tmp/
+*.db
+*.db-wal
+*.db-shm
+*.log
