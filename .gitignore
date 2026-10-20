@@ -49,3 +49,10 @@ tmp/
 *.db-wal
 *.db-shm
 *.log
+
+# Local build tooling and downloaded upstream libraries
+.tools/
+.superpowers/
+app/libs/*.aar
+app/src/main/cpp/vendor/
+artifacts/

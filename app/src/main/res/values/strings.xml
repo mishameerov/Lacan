@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Lacan</string>
+    <string name="accessibility_description">Lacan показывает кнопку диктовки у активного текстового поля и вставляет готовый текст. Содержимое экранов не сохраняется и не отправляется в сеть. Разрешение не включает микрофон автоматически.</string>
+    <color name="icon_background">#F3E7CC</color>
+    <style name="Theme.Lacan" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item><item name="android:colorAccent">#E75227</item>
+    </style>
+    <style name="Theme.Lacan.Launch" parent="android:style/Theme.Material.Light.Dialog.NoActionBar">
+        <item name="android:windowCloseOnTouchOutside">false</item><item name="android:windowMinWidthMajor">70%</item><item name="android:windowMinWidthMinor">80%</item><item name="android:backgroundDimAmount">0.15</item>
+    </style>
+</resources>
