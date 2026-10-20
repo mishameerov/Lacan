@@ -1,0 +1,18 @@
+2026-10-21: isolated Android ARM64 LiteRT 2.3.0 GPU-only encoder smoke
+Model SHA-256 f25e5972fe72048f67272e26d4badfe19d876e0fa19027cb2c6c0e0fc4da692b
+APK SHA-256 ca3c4710cd4daadbf991cb3efe7b33756ec03361d6ebf7b052050f234ccbcd21
+No speech input; one zero-feature encode; app force-stopped after20.54s.
+
+10-21 02:11:51.371  7218  7245 I litert  : [gpu_registry.cc:138] Dynamically loaded GPU accelerator(libLiteRtClGlAccelerator.so) registered.
+10-21 02:11:51.777  7218  7245 I litert  : [gpu_environment.cc:241] Created OpenCL device from provided device id and platform id.
+10-21 02:11:51.791  7218  7245 I tflite  : Replacing 1790 out of 1790 node(s) with delegate (LITERT_CL) node, yielding 1 partitions for subgraph 0 (encode).
+10-21 02:12:05.045  7218  7245 I native  : I0000 00:00:1792537925.045480    7245 delegate_kernel.cc:984] Initializing OpenCL-based API from graph.
+10-21 02:12:07.250  7218  7245 I tflite  : Replacing 2083 out of 2083 node(s) with delegate (LITERT_CL) node, yielding 1 partitions for subgraph 1 (decode).
+10-21 02:12:07.690  7218  7245 I native  : I0000 00:00:1792537927.690845    7245 delegate_kernel.cc:984] Initializing OpenCL-based API from graph.
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: requested=gpu only; partition placement UNVERIFIED
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: input=[1, 128, 500] floats=64000
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: features=ZERO SMOKE ONLY
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: compile_ms=17794.109414 run_and_read_ms=545.717032
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: output_floats=64512 min=-0.14701502 max=0.17130394
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: Saved encoder-gpu.f32le
+10-21 02:12:09.858  7218  7245 I ParakeetGpuProbe: This is not a transcription or speed qualification.

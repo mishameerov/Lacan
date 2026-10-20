@@ -1,0 +1,33 @@
+{
+  "sample_repository": "https://github.com/google-ai-edge/litert-samples",
+  "sample_commit": "f1e415713f0354920c263c66e65ebd4b138c7e67",
+  "model_repository": "litert-community/parakeet-tdt-0.6b-v3",
+  "model_revision": "3ce205aa928f443f423214195cfe83ebe4802826",
+  "runtime": "2.3.0",
+  "artifacts": {
+    "parakeet_tdt_0.6b_v3_5s_i8.tflite": {
+      "bytes": 614437424,
+      "sha256": "f25e5972fe72048f67272e26d4badfe19d876e0fa19027cb2c6c0e0fc4da692b"
+    },
+    "parakeet_tdt_0.6b_v3_5s_f32.tflite": {
+      "bytes": 2422415168,
+      "sha256": "ffa0d4cbb94589b78507bcac9d8b5e5b78d84f8f9d86dc8c397da1f433777a85"
+    },
+    "parakeet_tdt_0.6b_v3_5s_i8_stateful.tflite": {
+      "bytes": 614261072,
+      "sha256": "334745b8bc7fd372b1c213516f0b6338bb827b1a2abb3e77ad35fe6fea5cd16b"
+    }
+  },
+  "metadata_observed": "2026-10-21",
+  "downloaded_weights": true,
+  "tokenizer": {
+    "repository": "nvidia/parakeet-tdt-0.6b-v3",
+    "revision": "541d1f99c6b0c3cd0b11a95167540bb8edefd82b",
+    "file": "tokenizer.json",
+    "bytes": 1159960,
+    "sha256": "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91"
+  },
+  "jlibrosa": {
+    "sha256": "dc6ec9537f6e1e4f300b4021e214cc7f22bc661161d3a64ecd57b6a113a6a077"
+  }
+}
