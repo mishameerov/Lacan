@@ -10,6 +10,7 @@ interface AsrEngine : AutoCloseable {
 }
 object EngineFactory {
     fun create(spec: ModelSpec, directory: File, language: String): AsrEngine = when (spec.engine) {
+        "vosk" -> VoskEngine(org.lacan.models.VoskModelArchive.prepare(File(directory, spec.files.single().name), directory))
         "whisper" -> WhisperEngine(File(directory, spec.files.single().name))
         "sherpa-whisper" -> SherpaWhisperEngine(spec, directory, language)
         "sherpa-transducer" -> SherpaTransducerEngine(spec, directory)

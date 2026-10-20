@@ -13,8 +13,8 @@ android {
         applicationId = "org.lacan"
         minSdk = 33
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1.3-prototype"
+        versionCode = 5
+        versionName = "0.1.4-prototype"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DCMAKE_BUILD_TYPE=Release") } }
@@ -28,6 +28,7 @@ android {
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 dependencies {
     implementation(project(":core"))
+    implementation("com.alphacephei:vosk-android:0.3.75")
     implementation(files("libs/sherpa-onnx-1.12.32.aar"))
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.12.0")

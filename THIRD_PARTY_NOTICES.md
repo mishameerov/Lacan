@@ -14,6 +14,10 @@ Lacan is GPL-3.0-only. Models are optional user downloads and run locally.
 - GigaAM Multilingual600M, GigaChat Team, MIT; sherpa-compatible int8 export by fussraider, MIT: https://huggingface.co/fussraider/GigaAM-Multilingual-sherpa-onnx-ctc/tree/9f5a77e8975211abe8511693accd3a63ee1e9f43 . Original model: https://huggingface.co/ai-sage/GigaAM-Multilingual .
 - Material navigation icon vector paths: Google Material Design Icons, Apache-2.0: https://github.com/google/material-design-icons .
 
+- Vosk Android 0.3.75, Alpha Cephei, Apache-2.0: https://github.com/alphacep/vosk-api . CPU recognition through its bundled Kaldi runtime.
+- JNA 5.18.1 (Vosk dependency), used under Apache-2.0 option: https://github.com/java-native-access/jna/tree/5.18.1 .
+- Vosk small Russian 0.22 model, Alpha Cephei, Apache-2.0: https://alphacephei.com/vosk/models . Pinned Rhasspy mirror revision e7ac2109d134b5f2404ba95389b2fb51916d4cab; archive SHA-256 checked against the official download. No model files modified.
+
 The application catalog pins each individual artifact size and SHA-256. No model repository Python code is executed.
 
 ## whisper.cpp / ggml MIT

@@ -22,6 +22,9 @@ object ModelCatalog {
     private const val whisperLargeOnnx = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-large-v3/resolve/2a6507094dd6020d939d78e3f1834a1d06267fca/"
     private const val parakeet = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78/"
     val models = listOf(
+        ModelSpec("vosk-small-ru", "Vosk small RU 0.22 · CPU", "Русский, 46 МБ. Эксперимент для сравнения скорости и качества. Без пунктуации; смешанный английский не поддерживается. Язык определяется моделью.", listOf(
+            ModelFile("vosk-model-small-ru-0.22.zip", "https://huggingface.co/rhasspy/vosk-models/resolve/e7ac2109d134b5f2404ba95389b2fb51916d4cab/ru/vosk-model-small-ru-0.22.zip", "961d5ff98a17f4aa6de69864d0aa71fa5bac682301d2b5d17a3f24c5c99a46d4", 46236750)
+        ), "vosk"),
         ModelSpec("whisper-base-onnx", "Whisper base ONNX int8", "Русский и английский. 161 МБ; тот же sherpa-onnx, что у GigaAM. Сравните скорость и качество на своей речи.", listOf(
             ModelFile("base-encoder.int8.onnx", whisperBaseOnnx + "base-encoder.int8.onnx", "0b8fb1304b6109976038efff5ace81720e00386f3ff6b54ee8c75291ca0a1e11", 29120534),
             ModelFile("base-decoder.int8.onnx", whisperBaseOnnx + "base-decoder.int8.onnx", "9759d217388a01b3a4c7c15533201067b48ae819c4daafc8624e64b9409dc02d", 130672026),

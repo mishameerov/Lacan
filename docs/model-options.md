@@ -116,3 +116,7 @@ Public metadata was verified on 2026-10-21. ONNX SHA256/lengths are publisher LF
 | `tokens.txt` | 93939 | `d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d` |
 
 Totals: Medium **946072270** bytes; full Large-v3 **1775753918** bytes; Parakeet **670478772** bytes. Download size is not peak RAM use. JVM tests validate artifact routing, frontend dimensions, and path/configuration contracts; they do not load native models.
+
+## Vosk small RU CPU в 0.1.4
+
+Vosk Android 0.3.75, модель small-ru-0.22 (Apache-2.0). Русская модель без пунктуации; язык определяется весами, смешанная речь не гарантируется. Архив 46,236,750 байт, распаковка 91,289,240 байт. SHA-256 `961d5ff98a17f4aa6de69864d0aa71fa5bac682301d2b5d17a3f24c5c99a46d4`; mirror revision `e7ac2109d134b5f2404ba95389b2fb51916d4cab`. [Результат CPU smoke-test и ограничения](vosk-cpu-probe.md).
