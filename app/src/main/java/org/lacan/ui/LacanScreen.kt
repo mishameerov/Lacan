@@ -203,7 +203,7 @@ private fun DictationContent(state: ScreenState, actions: UiActions, openModels:
 @Composable
 private fun ModelsContent(state: ScreenState, actions: UiActions) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Файлы моделей скачиваются по вашему запросу. Распознавание выполняется на устройстве.", style = MaterialTheme.typography.bodyMedium, color = MutedInk)
+        Text("Скачайте модель или импортируйте локальный файл. Распознавание выполняется на устройстве.", style = MaterialTheme.typography.bodyMedium, color = MutedInk)
         if (state.models.isEmpty()) {
             EmptyCard("Каталог моделей пока пуст.")
         }
@@ -233,7 +233,7 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                         val progress = state.downloadProgress.coerceIn(0f, 1f)
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = Accent, trackColor = SoftAccent)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Загрузка · ${(progress * 100).toInt()}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MutedInk)
+                            Text("${if (model.localImportSupported) "Импорт" else "Загрузка"} · ${(progress * 100).toInt()}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MutedInk)
                             TextButton(onClick = actions::cancelDownload, modifier = Modifier.height(48.dp)) { Text("Отменить") }
                         }
                     } else {
@@ -243,11 +243,14 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                                     if (model.selected) {
                                         Text("Выбрана", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Success, fontWeight = FontWeight.SemiBold)
                                     } else {
-                                        OutlinedButton(onClick = { actions.selectModel(model.id) }, enabled = !state.busy && !state.recording, modifier = Modifier.weight(1f).height(48.dp)) { Text("Выбрать") }
+                                        OutlinedButton(onClick = { actions.selectModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.weight(1f).height(48.dp)) { Text("Выбрать") }
                                     }
-                                    TextButton(onClick = { actions.removeModel(model.id) }, enabled = !state.busy && !state.recording && !model.selected, modifier = Modifier.height(48.dp)) { Text("Удалить") }
+                                    TextButton(onClick = { actions.removeModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null && !model.selected, modifier = Modifier.height(48.dp)) { Text("Удалить") }
                                 }
-                                else -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                                model.localImportSupported -> Button(onClick = { actions.importModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                                    Text("Импортировать .mnn")
+                                }
+                                model.downloadable -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                                     Text("Скачать · ${model.sizeMb} МБ")
                                 }
                             }

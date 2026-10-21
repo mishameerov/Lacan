@@ -1,6 +1,7 @@
 package org.lacan.models
 
 import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -12,7 +13,7 @@ import java.net.URL
 import java.util.UUID
 import javax.net.ssl.HttpsURLConnection
 
-class ModelRepository(context: Context) {
+class ModelRepository(private val context: Context) {
     private val root = File(context.noBackupFilesDir, "models").apply { mkdirs() }
     private val downloadLock = Mutex()
     fun directory(spec: ModelSpec): File = File(root, spec.id)
@@ -35,12 +36,48 @@ class ModelRepository(context: Context) {
             try {
                 spec.files.forEach {
                     currentCoroutineContext().ensureActive()
-                    File(source, it.name).copyTo(File(staging, it.name))
+                    val coroutine = currentCoroutineContext()
+                    File(source, it.name).inputStream().buffered().use { input ->
+                        File(staging, it.name).outputStream().buffered().use { output ->
+                            copyModelFile(input, output, it.sizeBytes, checkActive = { coroutine.ensureActive() })
+                        }
+                    }
                 }
                 publish(spec, staging)
             } finally { staging.deleteRecursively() }
         }
     }
+    /** SAF supplies only the pinned model; auxiliary token bytes come from licensed app assets. */
+    suspend fun importLocal(spec: ModelSpec, uri: Uri, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
+        val importedFile = requireNotNull(spec.localImportFile) { "This model does not support local import" }
+        require(!spec.downloadable && spec.files.all { it.url == null })
+        downloadLock.withLock {
+            val staging = File(root, ".${spec.id}-${UUID.randomUUID()}")
+            check(staging.mkdirs()) { "Cannot create model staging directory" }
+            try {
+                val coroutine = currentCoroutineContext()
+                var copied = 0L
+                for (file in spec.files) {
+                    coroutine.ensureActive()
+                    val source = if (file.name == importedFile.name) {
+                        requireNotNull(context.contentResolver.openInputStream(uri)) { "Cannot open model document" }
+                    } else context.assets.open("models/${file.name}")
+                    source.buffered().use { input ->
+                        File(staging, file.name).outputStream().buffered().use { output ->
+                            copyModelFile(input, output, file.sizeBytes,
+                                onProgress = { count -> onProgress(((copied + count).toDouble() / spec.totalBytes).toFloat().coerceIn(0f, 1f)) },
+                                checkActive = { coroutine.ensureActive() })
+                        }
+                    }
+                    copied += file.sizeBytes
+                }
+                coroutine.ensureActive()
+                publish(spec, staging)
+                onProgress(1f)
+            } finally { staging.deleteRecursively() }
+        }
+    }
+
     private suspend fun publish(spec: ModelSpec, staging: File) {
         val context = currentCoroutineContext()
         ModelIntegrity.publish(staging, directory(spec), spec.files) {
@@ -52,6 +89,7 @@ class ModelRepository(context: Context) {
     fun remove(spec: ModelSpec) { check(directory(spec).deleteRecursively()) { "Cannot remove model" } }
 
     suspend fun download(spec: ModelSpec, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
+        spec.requireDownloadable()
         downloadLock.withLock {
             if (isInstalled(spec)) { onProgress(1f); return@withLock }
             val staging = File(root, ".${spec.id}-${UUID.randomUUID()}")
@@ -60,7 +98,7 @@ class ModelRepository(context: Context) {
                 var downloaded = 0L
                 for (file in spec.files) {
                     currentCoroutineContext().ensureActive()
-                    var url = URL(file.url)
+                    var url = URL(requireNotNull(file.url))
                     var connection: HttpsURLConnection? = null
                     // HF redirects to its HTTPS content store; never follow a downgrade.
                     for (redirect in 0..5) {

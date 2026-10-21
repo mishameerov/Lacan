@@ -3,6 +3,7 @@ package org.lacan.asr
 import java.io.File
 
 internal class WhisperEngine(model: File) : AsrEngine {
+    override val allowsSpeculativePreviews: Boolean get() = false
     private val operation = Any()
     private val lifetime = Any()
     private var pointer = nativeLoad(model.absolutePath).also { check(it != 0L) { "Cannot load Whisper model" } }

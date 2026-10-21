@@ -6492,3 +6492,10 @@ SOFTWARE.
 - Audio frontend and TDT decoding adapted from Google LiteRT ASR sample, Apache-2.0, commit f1e415713f0354920c263c66e65ebd4b138c7e67: https://github.com/google-ai-edge/litert-samples/tree/f1e415713f0354920c263c66e65ebd4b138c7e67/samples/litert/speech_recognition . Changes include Lacan lifecycle, cancellation, windowing and local-only loading. Source attribution retained in adapted files.
 - NVIDIA Parakeet TDT 0.6B v3 converted/quantized by LiteRT community, stateful INT8 five-second artifact from revision 3ce205aa928f443f423214195cfe83ebe4802826. Original model CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ . Conversion and quantization are modifications; no NVIDIA endorsement. Tokenizer from NVIDIA revision 541d1f99c6b0c3cd0b11a95167540bb8edefd82b.
 - JLibrosa 1.1.8-SNAPSHOT, MIT (Deezer SA and project contributors): https://github.com/Subtitle-Synchronizer/jlibrosa . The SHA-256-pinned JAR bundles Commons Math (Apache-2.0), json-simple (Apache-2.0), and test classes. Lacan removes the bundled JUnit/Hamcrest classes from its runtime JAR to avoid dependency conflicts; original notices are retained in assets/licenses.
+
+## GigaAM MNN GPU integration
+
+- MNN 3.6.1 (Alibaba and contributors), Apache-2.0, source commit `d407447ed56c4121a11ccbd266dc184ca1ead0c2`: https://github.com/alibaba/MNN . Lacan adds an execution-placement diagnostic hook to reject CPU fallback results and resets stale convolution pre/post kernels when resizing inputs.
+- kaldi-native-fbank 1.22.3, Apache-2.0: https://github.com/csukuangfj/kaldi-native-fbank .
+- kissfft, BSD-3-Clause, commit `febd4caeed32e33ad8b2e0bb5ea77542c40f18ec`: https://github.com/mborgerding/kissfft . Full notices are bundled under assets/licenses.
+- GigaAM v3 FP32 weights and bundled CTC tokens retain the GigaAM MIT license listed above. MNN conversion preserves FP32 weights; converted weights are imported separately and are not bundled in the APK.

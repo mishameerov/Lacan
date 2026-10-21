@@ -1,6 +1,6 @@
 package org.lacan.ui
 
-data class ModelCard(val id: String, val title: String, val description: String, val sizeMb: Int, val installed: Boolean, val selected: Boolean)
+data class ModelCard(val id: String, val title: String, val description: String, val sizeMb: Int, val installed: Boolean, val selected: Boolean, val localImportSupported: Boolean = false, val downloadable: Boolean = true)
 data class HistoryCard(val id: String, val date: String, val text: String, val detail: String)
 data class ScreenState(
     val microphoneGranted: Boolean = false,
@@ -14,7 +14,7 @@ data class ScreenState(
     val audioLevel: Float = 0f,
     val recordingStartedAtMillis: Long = 0L,
     val recordingElapsedMillis: Long = 0L,
-    val status: String = "Выберите и скачайте модель",
+    val status: String = "Выберите и установите модель",
     val preview: String = "",
     val result: String = "",
     val models: List<ModelCard> = emptyList(),
@@ -26,6 +26,7 @@ data class ScreenState(
 interface UiActions {
     fun microphone(); fun notifications(); fun overlay(); fun accessibility()
     fun setEnabled(value: Boolean); fun setLanguage(value: String)
+    fun importModel(id: String)
     fun download(id: String); fun cancelDownload(); fun selectModel(id: String); fun removeModel(id: String)
     fun start(); fun stop(); fun cancel(); fun copy(text: String)
     fun deleteHistory(id: String); fun clearHistory(); fun dismissResult()

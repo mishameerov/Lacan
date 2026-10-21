@@ -23,6 +23,7 @@ if [ ! -f .tools/whisper.cpp/CMakeLists.txt ]; then
     rmdir .tools/whisper-unpack
 fi
 python3 tools/prepare-jlibrosa.py
+sh tools/prepare-giga-mnn.sh
 # Preserve dependency license texts in the APK, in addition to the source archive.
 mkdir -p app/src/main/assets/licenses
 cp .tools/whisper.cpp/LICENSE app/src/main/assets/licenses/whisper.cpp-MIT.txt

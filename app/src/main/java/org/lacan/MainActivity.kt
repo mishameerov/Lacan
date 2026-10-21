@@ -15,10 +15,21 @@ import org.lacan.ui.UiActions
 
 class MainActivity : ComponentActivity() {
     private val runtime get() = LacanApp.runtime
+    private var importingModelId: String? = null
+    private val importDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val id = importingModelId
+        importingModelId = null
+        if (uri != null && id != null) runtime.importModel(id, uri)
+    }
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { runtime.refreshPermissions() }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
+        importingModelId = savedInstanceState?.getString("importingModelId")
         setContent { LacanScreen(runtime.state.collectAsStateWithLifecycle().value, actions) }
+    }
+    override fun onSaveInstanceState(outState: Bundle) {
+        importingModelId?.let { outState.putString("importingModelId", it) }
+        super.onSaveInstanceState(outState)
     }
     override fun onResume() { super.onResume(); runtime.refreshPermissions() }
     private val actions = object : UiActions {
@@ -28,6 +39,11 @@ class MainActivity : ComponentActivity() {
         override fun accessibility() { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         override fun setEnabled(value: Boolean) = runtime.setEnabled(value)
         override fun setLanguage(value: String) = runtime.setLanguage(value)
+        override fun importModel(id: String) {
+            if (runtime.state.value.busy || runtime.state.value.downloadingId != null) return
+            importingModelId = id
+            importDocument.launch(arrayOf("*/*"))
+        }
         override fun download(id: String) = runtime.download(id)
         override fun cancelDownload() = runtime.cancelDownload()
         override fun selectModel(id: String) = runtime.selectModel(id)

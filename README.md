@@ -30,7 +30,7 @@ Lacan показывает плавающую кнопку у текстовог
 ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-Готовый debug APK: `app/build/outputs/apk/debug/app-debug.apk`. Скрипт `tools/build-local.sh` также сохраняет копию в `artifacts/lacan-0.1.5-prototype.apk`.
+Готовый debug APK: `app/build/outputs/apk/debug/app-debug.apk`. Скрипт `tools/build-local.sh` также сохраняет копию в `artifacts/lacan-0.1.6-prototype.apk`.
 
 Для проверки вставки предусмотрено отдельное приложение `:fixture`; оно не входит в APK Lacan. Инструментальные тесты берут модели и публичные WAV-записи из приватного каталога приложения `files/test-fixtures`; каталог перед запуском передаётся на устройство вручную и не входит в APK или Git. Структура файлов и команды установки описаны в [инструкции локального тестирования](docs/local-testing.md). Не используйте личные записи в этих тестах.
 
@@ -61,3 +61,5 @@ Lacan is a free Android app for on-device voice dictation, licensed under GPL-3.
 В прототипе 0.1.4 добавлен [Vosk small RU на CPU](docs/vosk-cpu-probe.md), проверенный коротким тестом на A56. Это отдельный эксперимент без пунктуации и поддержки смешанного английского. [Проверка доступа к NPU A56](docs/a56-npu-access.md) обнаружила через NNAPI только reference CPU; GPU-путь Parakeet разрабатывается отдельно от основного APK.
 
 В прототипе 0.1.5 [Parakeet GPU встроен в Lacan](docs/parakeet-gpu-integration.md): отдельная модель в каталоге, локальная загрузка и распознавание, без скрытого переключения на CPU. Совместимость пока проверена только на A56; другие телефоны требуют испытаний.
+
+В прототипе 0.1.6 отключены повторные черновые прогоны Whisper: пузырь обновляется по завершённым фрагментам. [Замеры Medium ONNX на A56 и причины задержек](docs/whisper-performance.md). Добавлен отдельный экспериментальный [GigaAM FP32 GPU через MNN/OpenCL](docs/gigaam-gpu-probe.md) с проверяемым импортом локального файла модели. CPU-вариант сохранён.

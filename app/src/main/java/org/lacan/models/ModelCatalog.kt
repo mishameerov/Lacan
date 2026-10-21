@@ -1,16 +1,21 @@
 package org.lacan.models
 
-data class ModelFile(val name: String, val url: String, val sha256: String, val sizeBytes: Long) {
+data class ModelFile(val name: String, val url: String?, val sha256: String, val sizeBytes: Long) {
     init {
         require(name.matches(Regex("[A-Za-z0-9_.-]+")) && name != "." && name != "..")
-        require(url.startsWith("https://"))
+        require(url == null || url.startsWith("https://"))
         require(sha256.matches(Regex("[a-f0-9]{64}")))
         require(sizeBytes > 0)
     }
 }
-data class ModelSpec(val id: String, val title: String, val description: String, val files: List<ModelFile>, val engine: String, val featureDim: Int = 80) {
+data class ModelSpec(val id: String, val title: String, val description: String, val files: List<ModelFile>, val engine: String, val featureDim: Int = 80, val localImportFileName: String? = null) {
     val totalBytes: Long get() = files.sumOf { it.sizeBytes }
-    init { require(id.matches(Regex("[a-z0-9-]+"))); require(files.isNotEmpty()); require(files.map { it.name }.distinct().size == files.size) }
+    val downloadable: Boolean get() = files.all { it.url != null }
+    val localImportFile: ModelFile? get() = localImportFileName?.let { name -> files.single { it.name == name } }
+    init { require(id.matches(Regex("[a-z0-9-]+"))); require(files.isNotEmpty()); require(files.map { it.name }.distinct().size == files.size)
+        require(localImportFileName == null || files.any { it.name == localImportFileName } && files.all { it.url == null })
+    }
+    internal fun requireDownloadable() { require(downloadable) { "This model requires a local file import" } }
 }
 object ModelCatalog {
     private const val whisper = "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/"
@@ -22,6 +27,10 @@ object ModelCatalog {
     private const val whisperLargeOnnx = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-large-v3/resolve/2a6507094dd6020d939d78e3f1834a1d06267fca/"
     private const val parakeet = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78/"
     val models = listOf(
+        ModelSpec("gigaam-v3-fp32-gpu", "GigaAM v3 FP32 · GPU · локальный эксперимент", "Русский, с пунктуацией. 886 МБ; MNN OpenCL на GPU, без скрытого перехода на CPU. Импортируйте проверенный файл .mnn; публичной загрузки нет. Требует много ОЗУ.", listOf(
+            ModelFile("gigaam_v3_e2e_ctc_fp32.mnn", null, "bdebf9ad1f4e5221096c723fbafbe0c726a4903ea623dc33557d51bed5f5e76c", 886031144),
+            ModelFile("gigaam_v3_e2e_ctc_tokens.txt", null, "f8eb9b115e2748db9c40a5897cae11dd0678cc0b40fd7e25f8c43b3bf28715e4", 2006)
+        ), "mnn-gigaam-gpu", featureDim = 64, localImportFileName = "gigaam_v3_e2e_ctc_fp32.mnn"),
         ModelSpec("parakeet-tdt-gpu", "Parakeet TDT v3 · GPU · экспериментальная", "Русский, английский и ещё 23 языка. 615 МБ; LiteRT на GPU, без скрытого перехода на CPU. Первая загрузка может занять около 20 секунд. Для сравнения с ONNX CPU.", listOf(
             ModelFile("parakeet.tflite", "https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3/resolve/3ce205aa928f443f423214195cfe83ebe4802826/parakeet_tdt_0.6b_v3_5s_i8_stateful.tflite", "334745b8bc7fd372b1c213516f0b6338bb827b1a2abb3e77ad35fe6fea5cd16b", 614261072),
             ModelFile("tokenizer.json", "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/tokenizer.json", "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91", 1159960)

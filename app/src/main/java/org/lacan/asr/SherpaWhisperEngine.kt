@@ -26,6 +26,7 @@ internal fun sherpaWhisperConfig(spec: ModelSpec, directory: File, language: Str
     )
 
 internal class SherpaWhisperEngine(spec: ModelSpec, directory: File, language: String) : AsrEngine {
+    override val allowsSpeculativePreviews: Boolean get() = false
     private val config = sherpaWhisperConfig(spec, directory, language)
     private val recognizer = OfflineRecognizer(assetManager = null, config = config)
     private val cancelled = AtomicBoolean(false)

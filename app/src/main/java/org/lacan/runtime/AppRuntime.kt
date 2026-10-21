@@ -5,6 +5,7 @@ import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.*
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
@@ -84,21 +85,21 @@ class AppRuntime(private val context: Context) {
     }
     private fun refreshReadiness() {
         mutable.update { it.copy(readyToRecord = it.enabled && it.microphoneGranted && it.notificationsGranted &&
-            engine != null && engineKey == "$selected:${it.language}") }
+            !modelMutation && engine != null && engineKey == "$selected:${it.language}") }
     }
     private fun refreshModels() {
         mutable.update { it.copy(models = ModelCatalog.models.map { m -> ModelCard(m.id, m.title, m.description,
-            ((m.totalBytes + 999999) / 1000000).toInt(), repository.isInstalled(m), m.id == selected) }) }
+            ((m.totalBytes + 999999) / 1000000).toInt(), repository.isInstalled(m), m.id == selected, m.localImportFile != null, m.downloadable) }) }
         refreshReadiness()
     }
     fun setEnabled(value: Boolean) {
-        if (state.value.busy) return
+        if (state.value.busy || modelMutation) return
         prefs.edit().putBoolean("enabled", value).apply(); mutable.update { it.copy(enabled = value) }
         refreshReadiness()
         if (value) warmModel() else releaseIdleModel()
     }
     fun setLanguage(value: String) {
-        if (state.value.busy || value !in listOf("ru", "en", "auto")) return
+        if (state.value.busy || modelMutation || value !in listOf("ru", "en", "auto")) return
         prefs.edit().putString("language", value).apply(); mutable.update { it.copy(language = value) }; warmModel()
     }
     fun selectModel(id: String) {
@@ -108,18 +109,45 @@ class AppRuntime(private val context: Context) {
         selected = id; prefs.edit().putString("model", id).apply(); refreshModels(); warmModel()
     }
     fun download(id: String) {
-        if (downloadJob?.isActive == true) return
         val spec = ModelCatalog.models.find { it.id == id } ?: return
+        if (!spec.downloadable) { message("Для этой модели нужен импорт локального файла .mnn"); return }
+        transferModel(spec, importing = false) { progress -> repository.download(spec, progress) }
+    }
+    fun importModel(id: String, uri: Uri) {
+        val spec = ModelCatalog.models.find { it.id == id } ?: return
+        if (spec.localImportFile == null) { message("Эта модель не поддерживает импорт файла"); return }
+        transferModel(spec, importing = true) { progress -> repository.importLocal(spec, uri, progress) }
+    }
+    private fun transferModel(spec: ModelSpec, importing: Boolean, transfer: suspend ((Float) -> Unit) -> Unit) {
+        if (state.value.busy || modelMutation || downloadJob?.isActive == true) return
+        modelMutation = true
+        warmJob?.cancel()
+        mutable.update { it.copy(downloadingId = spec.id, downloadProgress = 0f, status = if (importing) "Импорт и проверка модели…" else "Загрузка модели…") }
+        refreshReadiness()
         downloadJob = scope.launch {
-            mutable.update { it.copy(downloadingId = id, downloadProgress = 0f) }
+            var installed = false
             try {
-                withContext(Dispatchers.IO) { repository.download(spec) { progress -> mutable.update { it.copy(downloadProgress = progress) } } }
+                engineMutex.withLock {
+                    closeEngine()
+                    transfer { progress -> mutable.update { it.copy(downloadProgress = progress) } }
+                }
+                installed = true
+                message(if (importing) "Модель импортирована и проверена" else "Модель скачана и проверена")
+            } catch (_: CancellationException) { message(if (importing) "Импорт отменён" else "Загрузка отменена") }
+            catch (_: Exception) {
+                message(if (importing) "Не удалось импортировать модель. Нужен точный файл .mnn из каталога и достаточно свободного места."
+                    else "Не удалось скачать модель. Проверьте сеть и свободное место; попробуйте снова.")
+            } finally {
+                modelMutation = false
+                mutable.update { it.copy(downloadingId = null) }
                 refreshModels()
-                if (selected.isBlank() && !state.value.busy) selectModel(id)
-                message("Модель скачана и проверена")
-            } catch (_: CancellationException) { message("Загрузка отменена") }
-            catch (_: Exception) { message("Не удалось скачать модель. Проверьте сеть и свободное место; попробуйте снова.") }
-            finally { mutable.update { it.copy(downloadingId = null) }; refreshModels() }
+                if (installed && selected.isBlank()) {
+                    selected = spec.id
+                    prefs.edit().putString("model", selected).apply()
+                    refreshModels()
+                }
+                warmModel()
+            }
         }
     }
     fun cancelDownload() { downloadJob?.cancel() }
@@ -156,7 +184,7 @@ class AppRuntime(private val context: Context) {
         refreshReadiness()
     }
     private fun warmModel() {
-        if (!state.value.enabled || state.value.busy) return
+        if (!state.value.enabled || state.value.busy || modelMutation) return
         val spec = ModelCatalog.models.find { it.id == selected } ?: return
         if (!repository.isInstalled(spec)) return
         refreshReadiness()
@@ -165,10 +193,10 @@ class AppRuntime(private val context: Context) {
         warmJob = scope.launch {
             try {
                 engineMutex.withLock {
-                    if (!state.value.busy && state.value.enabled) { message(if (spec.engine == "litert-parakeet-gpu") "Подготовка Parakeet на GPU…" else "Загрузка модели в память…"); engineFor(spec, language); if (!state.value.busy) message("Готово к диктовке") }
+                    if (!state.value.busy && state.value.enabled && !modelMutation) { message(if (spec.engine.endsWith("-gpu")) "Подготовка модели на GPU…" else "Загрузка модели в память…"); engineFor(spec, language); if (!state.value.busy) message("Готово к диктовке") }
                 }
             } catch (_: CancellationException) { }
-            catch (_: Exception) { message(if (spec.engine == "litert-parakeet-gpu") "Не удалось запустить Parakeet на GPU. Выберите Parakeet ONNX CPU." else "Не удалось загрузить модель. Попробуйте выбрать более лёгкую.") }
+            catch (_: Exception) { message(if (spec.engine.endsWith("-gpu")) "Не удалось запустить модель на GPU. Выберите модель для CPU." else "Не удалось загрузить модель. Попробуйте выбрать более лёгкую.") }
         }
     }
     fun releaseIdleModel() {
@@ -178,7 +206,7 @@ class AppRuntime(private val context: Context) {
         refreshPermissions()
         val spec = ModelCatalog.models.find { it.id == selected }
         if (modelMutation || !state.value.enabled || !state.value.microphoneGranted || spec == null || !repository.isInstalled(spec)) {
-            message("Для записи включите Lacan, разрешите микрофон и выберите скачанную модель"); onFinished(); return
+            message("Для записи включите Lacan, разрешите микрофон и выберите установленную модель"); onFinished(); return
         }
         if (locked()) { message("Разблокируйте экран для диктовки"); onFinished(); return }
         if (!state.value.notificationsGranted) { message("Для фоновой диктовки разрешите уведомления Lacan: в них доступны Стоп и Отмена"); onFinished(); return }
@@ -258,7 +286,7 @@ class AppRuntime(private val context: Context) {
                         val behind = s.spool.sampleCount - processedEnd
                         val slow = System.nanoTime() - start > samples.size.toLong() * 1_000_000_000 / 16000
                         mutable.update { it.copy(preview = assembler.text, status = if (!s.recording) "Завершаю распознавание…" else if (slow && behind > 32000) "Модель отстаёт · звук сохранён" else "Слушаю · локальное распознавание") }
-                    } else if (s.recording && s.spool.sampleCount - processedEnd >= 8000 && System.currentTimeMillis() - lastPreview >= 2000) {
+                    } else if (asr.allowsSpeculativePreviews && s.recording && s.spool.sampleCount - processedEnd >= 8000 && System.currentTimeMillis() - lastPreview >= 2000) {
                         val end = s.spool.sampleCount
                         val samples = withContext(Dispatchers.IO) { s.spool.read(maxOf(processedEnd, end - 128000), end) }
                         // Skip silence previews; mandatory segments retain priority at next iteration.
