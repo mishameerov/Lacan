@@ -13,8 +13,8 @@ android {
         applicationId = "org.lacan"
         minSdk = 33
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.1.6-prototype"
+        versionCode = 8
+        versionName = "0.1.7-prototype"
         testInstrumentationRunner = providers.gradleProperty("lacanTestRunner").getOrElse("androidx.test.runner.AndroidJUnitRunner")
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DCMAKE_BUILD_TYPE=Release") } }

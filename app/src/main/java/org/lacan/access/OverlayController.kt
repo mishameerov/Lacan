@@ -94,7 +94,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
         lastMode = mode
         val (width, height) = availableArea()
         lastArea = width to height
-        val ax = (anchorX * (width - size).coerceAtLeast(0)).roundToInt()
+        val ax = gap + (anchorX * (width - size - 2 * gap).coerceAtLeast(0)).roundToInt()
         val ay = (anchorY * (height - size).coerceAtLeast(0)).roundToInt()
         val expanded = mode != "idle"
         val startX = ax
@@ -109,14 +109,14 @@ class OverlayController(private val context: Context) : AutoCloseable {
         if (expanded) {
             val leftSide = ax < (width - size) / 2
             val cancelX = if (mode in listOf("preparing", "record-preparing")) {
-                if (leftSide) (ax + size + gap).coerceAtMost(width - size) else (ax - size - gap).coerceAtLeast(0)
-            } else if (leftSide) width - size else 0
+                if (leftSide) (ax + size + gap).coerceAtMost(width - size - gap) else (ax - size - gap).coerceAtLeast(gap)
+            } else if (leftSide) width - size - gap else gap
             addSurface(button(R.drawable.overlay_close, if (mode == "result") "Закрыть результат" else "Отменить диктовку") {
                 if (mode == "result") runtime.dismissResult() else runtime.cancel()
             }, size, cancelX, ay, RED)
             if (mode !in listOf("preparing", "record-preparing")) {
-                val previewStart = (if (leftSide) ax + size else size) + gap
-                val previewEnd = (if (leftSide) width - size else ax) - gap
+                val previewStart = (if (leftSide) ax + size else cancelX + size) + gap
+                val previewEnd = (if (leftSide) cancelX else ax) - gap
                 val previewWidth = (previewEnd - previewStart).coerceAtLeast(0)
                 if (previewWidth > 0) addPreview(previewWidth, previewStart, ay, mode == "result")
             }
@@ -270,12 +270,12 @@ class OverlayController(private val context: Context) : AutoCloseable {
                     if (abs(dx) > slop || abs(dy) > slop) moved = true
                     if (moved) {
                         val (width, height) = availableArea()
-                        anchorX = (initialX + dx / (width - size).coerceAtLeast(1)).coerceIn(0f, 1f)
+                        anchorX = (initialX + dx / (width - size - 2 * gap).coerceAtLeast(1)).coerceIn(0f, 1f)
                         anchorY = (initialY + dy / (height - size).coerceAtLeast(1)).coerceIn(0f, 1f)
                         val y = (anchorY * (height - size).coerceAtLeast(0)).roundToInt()
                         surfaces.forEach { surface ->
                             surface.y = y
-                            if (lastMode == "idle") surface.x = (anchorX * (width - size).coerceAtLeast(0)).roundToInt()
+                            if (lastMode == "idle") surface.x = gap + (anchorX * (width - size - 2 * gap).coerceAtLeast(0)).roundToInt()
                             runCatching { surface.position() }
                         }
                     }

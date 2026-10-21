@@ -39,7 +39,7 @@ class AppRuntime(private val context: Context) {
     private var engine: AsrEngine? = null
     private var engineKey: String? = null
     private val gate = SessionGate()
-    private var selected = prefs.getString("model", "") ?: ""
+    private var selected = ModelCatalog.activeSelection(prefs.getString("model", "") ?: "")
     private val mutable = MutableStateFlow(ScreenState(enabled = prefs.getBoolean("enabled", true), language = prefs.getString("language", "ru") ?: "ru"))
     val state: StateFlow<ScreenState> = mutable.asStateFlow()
     @Volatile private var current: Session? = null
@@ -64,6 +64,7 @@ class AppRuntime(private val context: Context) {
         @Volatile var recording = true
     }
     init {
+        prefs.edit().putString("model", selected).apply()
         // Process death never resumes microphone or replays insertion.
         File(context.cacheDir, "audio").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
         scope.launch {
@@ -88,7 +89,7 @@ class AppRuntime(private val context: Context) {
             !modelMutation && engine != null && engineKey == "$selected:${it.language}") }
     }
     private fun refreshModels() {
-        mutable.update { it.copy(models = ModelCatalog.models.map { m -> ModelCard(m.id, m.title, m.description,
+        mutable.update { it.copy(models = ModelCatalog.activeModels.map { m -> ModelCard(m.id, m.title, m.description,
             ((m.totalBytes + 999999) / 1000000).toInt(), repository.isInstalled(m), m.id == selected, m.localImportFile != null, m.downloadable) }) }
         refreshReadiness()
     }
@@ -104,17 +105,17 @@ class AppRuntime(private val context: Context) {
     }
     fun selectModel(id: String) {
         if (state.value.busy || modelMutation) return
-        val spec = ModelCatalog.models.find { it.id == id } ?: return
+        val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
         if (!repository.isInstalled(spec)) return
         selected = id; prefs.edit().putString("model", id).apply(); refreshModels(); warmModel()
     }
     fun download(id: String) {
-        val spec = ModelCatalog.models.find { it.id == id } ?: return
+        val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
         if (!spec.downloadable) { message("Для этой модели нужен импорт локального файла .mnn"); return }
         transferModel(spec, importing = false) { progress -> repository.download(spec, progress) }
     }
     fun importModel(id: String, uri: Uri) {
-        val spec = ModelCatalog.models.find { it.id == id } ?: return
+        val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
         if (spec.localImportFile == null) { message("Эта модель не поддерживает импорт файла"); return }
         transferModel(spec, importing = true) { progress -> repository.importLocal(spec, uri, progress) }
     }
@@ -153,7 +154,7 @@ class AppRuntime(private val context: Context) {
     fun cancelDownload() { downloadJob?.cancel() }
     fun removeModel(id: String) {
         if (state.value.busy || modelMutation || state.value.downloadingId == id) return
-        val spec = ModelCatalog.models.find { it.id == id } ?: return
+        val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
         modelMutation = true
         scope.launch {
           try {
@@ -185,7 +186,7 @@ class AppRuntime(private val context: Context) {
     }
     private fun warmModel() {
         if (!state.value.enabled || state.value.busy || modelMutation) return
-        val spec = ModelCatalog.models.find { it.id == selected } ?: return
+        val spec = ModelCatalog.activeModels.find { it.id == selected } ?: return
         if (!repository.isInstalled(spec)) return
         refreshReadiness()
         val language = state.value.language
@@ -204,7 +205,7 @@ class AppRuntime(private val context: Context) {
     }
     fun startCapture(onFinished: () -> Unit) {
         refreshPermissions()
-        val spec = ModelCatalog.models.find { it.id == selected }
+        val spec = ModelCatalog.activeModels.find { it.id == selected }
         if (modelMutation || !state.value.enabled || !state.value.microphoneGranted || spec == null || !repository.isInstalled(spec)) {
             message("Для записи включите Lacan, разрешите микрофон и выберите установленную модель"); onFinished(); return
         }

@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ModelCatalogTest {
+    @Test fun dailyModelsAndPreviousSelectionsUseCpu() {
+        assertEquals(listOf("gigaam-v3-fp32", "parakeet-tdt-0-6b-v3"), ModelCatalog.activeModels.map { it.id })
+        assertEquals("gigaam-v3-fp32", ModelCatalog.activeSelection("gigaam-v3-fp32-gpu"))
+        assertEquals("parakeet-tdt-0-6b-v3", ModelCatalog.activeSelection("parakeet-tdt-gpu"))
+        assertEquals("gigaam-v3-fp32", ModelCatalog.activeSelection("whisper-medium-onnx"))
+        ModelCatalog.activeModels.forEach { assertEquals(it.id, ModelCatalog.activeSelection(it.id)) }
+    }
+
     @Test fun multilingualWhisperOnnxChoicesHaveEncoderDecoderAndTokens() {
         listOf("whisper-base-onnx", "whisper-small-onnx", "whisper-medium-onnx", "whisper-large-v3-onnx").forEach { id ->
             val model = ModelCatalog.models.single { it.id == id }
