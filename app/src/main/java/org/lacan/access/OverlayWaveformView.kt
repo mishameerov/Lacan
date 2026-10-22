@@ -13,7 +13,7 @@ internal class OverlayWaveformView(context: Context) : View(context) {
     private val amplitudes = FloatArray(24)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(240, 181, 211, 255)
-        strokeWidth = 3f * density
+        strokeWidth = 2.1f * density
         strokeCap = Paint.Cap.ROUND
     }
     private var lastSampleAt = 0L
@@ -31,7 +31,7 @@ internal class OverlayWaveformView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val padding = 16f * density
+        val padding = 11.2f * density
         val usable = (width - padding * 2).coerceAtLeast(0f)
         val count = minOf(amplitudes.size, (usable / (6f * density)).toInt())
         if (count < 1) return
@@ -39,7 +39,7 @@ internal class OverlayWaveformView(context: Context) : View(context) {
         val middle = height / 2f
         for (index in 0 until count) {
             val amplitude = amplitudes[amplitudes.size - count + index]
-            val half = (2f + amplitude * 15f) * density
+            val half = (1.4f + amplitude * 10.5f) * density
             val x = padding + step * (index + .5f)
             canvas.drawLine(x, middle - half, x, middle + half, paint)
         }

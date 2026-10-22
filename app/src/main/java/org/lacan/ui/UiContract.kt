@@ -10,6 +10,7 @@ data class ScreenState(
     val enabled: Boolean = true,
     val busy: Boolean = false,
     val recording: Boolean = false,
+    val cancelling: Boolean = false,
     val readyToRecord: Boolean = false,
     val audioLevel: Float = 0f,
     val recordingStartedAtMillis: Long = 0L,
@@ -27,6 +28,7 @@ interface UiActions {
     fun microphone(); fun notifications(); fun overlay(); fun accessibility()
     fun setEnabled(value: Boolean); fun setLanguage(value: String)
     fun importModel(id: String)
+    fun downloadForSetup(id: String) = download(id)
     fun download(id: String); fun cancelDownload(); fun selectModel(id: String); fun removeModel(id: String)
     fun start(); fun stop(); fun cancel(); fun copy(text: String)
     fun deleteHistory(id: String); fun clearHistory(); fun dismissResult()

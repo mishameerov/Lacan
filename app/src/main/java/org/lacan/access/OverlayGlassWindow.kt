@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
 internal class OverlayGlassWindow(
     private val context: Context,
     content: View,
-    private val width: Int,
+    private var width: Int,
     private val height: Int,
     var x: Int,
     var y: Int,
@@ -63,6 +63,13 @@ internal class OverlayGlassWindow(
             this.x = this@OverlayGlassWindow.x
             this.y = this@OverlayGlassWindow.y
         }
+    }
+
+    fun setBounds(x: Int, y: Int, width: Int) {
+        this.x = x
+        this.y = y
+        this.width = width
+        position()
     }
 
     private fun applyGlass(blurEnabled: Boolean) {

@@ -54,6 +54,9 @@ class DeliveryIntegrationTest {
             val result = runBlocking { LacanAccessibilityService.instance!!.deliver("тест ") }
             assertEquals("inserted", result)
             assertTrue(device.wait(Until.hasObject(By.text("начало тест конец")), 3000))
+            // Long dictation must still confirm with a bounded surrounding-text read.
+            val longText = "длинная диктовка ".repeat(350)
+            assertEquals("inserted", runBlocking { LacanAccessibilityService.instance!!.deliver(longText) })
             fixture(true)
             assertNotNull(device.wait(Until.findObject(By.desc("Поле для проверки вставки")), 5000))
             Thread.sleep(700)

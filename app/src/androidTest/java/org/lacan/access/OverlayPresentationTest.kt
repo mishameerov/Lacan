@@ -76,7 +76,7 @@ class OverlayPresentationTest {
         instrument.runOnMainSync { controller = OverlayController(context) }
         try {
             instrument.runOnMainSync { controller.update(recording, true, true, false) }
-            val stopVisible = device.wait(Until.hasObject(By.desc("Остановить диктовку")), 3000)
+            val stopVisible = device.wait(Until.hasObject(By.desc("Завершить диктовку")), 3000)
             device.takeScreenshot(File(context.filesDir, "overlay013-initial.png"))
             assertTrue("Stop control must remain reachable", stopVisible)
             assertTrue("Cancel control must remain reachable", device.hasObject(By.desc("Отменить диктовку")))
@@ -90,8 +90,14 @@ class OverlayPresentationTest {
             assertTrue(device.hasObject(By.descStartsWith("Длительность записи")))
             assertTrue(device.takeScreenshot(File(context.filesDir, "overlay012-preview.png")))
 
+            // A successful delivery clears busy/result and collapses to one microphone.
+            instrument.runOnMainSync { controller.update(ScreenState(readyToRecord = true), true, true, false) }
+            assertTrue(device.wait(Until.hasObject(By.desc("Начать диктовку")), 3000))
+            assertTrue(device.wait(Until.gone(By.desc("Отменить диктовку")), 3000))
+            assertFalse(device.hasObject(By.descStartsWith("Длительность записи")))
+
             instrument.runOnMainSync { controller.update(recording.copy(readyToRecord = false), true, true, false) }
-            assertTrue(device.wait(Until.hasObject(By.desc("Остановить диктовку")), 3000))
+            assertTrue(device.wait(Until.hasObject(By.desc("Завершить диктовку")), 3000))
             assertFalse("Cold model keeps recording controls without a pill", device.hasObject(By.descStartsWith("Длительность записи")))
 
             val preparing = ScreenState(busy = true, notificationsGranted = true)

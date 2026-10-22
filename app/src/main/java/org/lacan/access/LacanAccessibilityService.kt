@@ -110,7 +110,11 @@ class LacanAccessibilityService : AccessibilityService() {
             if (editor.packageName != first.packageName || TargetPolicy.passwordInputType(editor.inputType)) return@withContext "manual"
             val connection = method.currentInputConnection ?: return@withContext "manual"
             // Selection offsets need no read of pre-existing field text.
-            val cursor = minOf(firstNode.textSelectionStart, firstNode.textSelectionEnd)
+            val selection = connection.getSurroundingText(0, 0, 0)
+            val cursor = if (selection != null && selection.offset >= 0 &&
+                selection.selectionStart >= 0 && selection.selectionEnd >= 0) {
+                selection.offset + minOf(selection.selectionStart, selection.selectionEnd)
+            } else minOf(firstNode.textSelectionStart, firstNode.textSelectionEnd)
             val freshNode = focused() ?: return@withContext "manual"
             val fresh = facts(freshNode)
             val freshEditor = method.currentInputEditorInfo ?: return@withContext "manual"
@@ -123,13 +127,15 @@ class LacanAccessibilityService : AccessibilityService() {
             // Mark before issuing: an exception can occur after the remote editor consumed text.
             issued = true
             connection.commitText(text, 1, null)
-            if (cursor < 0 || text.length > 4096) return@withContext "uncertain"
+            if (cursor < 0) return@withContext "uncertain"
             repeat(3) {
                 delay(70)
-                val current = focused()?.let(::facts) ?: return@withContext "uncertain"
-                if (generation != editorGeneration || locked() || !TargetPolicy.sameTarget(first, current) ||
+                val currentNode = focused() ?: return@withContext "uncertain"
+                val current = facts(currentNode)
+                if (currentNode != freshNode || generation != editorGeneration || locked() ||
+                    !TargetPolicy.sameEditorAfterCommit(first, current) ||
                     !TargetPolicy.eligible(current, packageName, false)) return@withContext "uncertain"
-                val after = connection.getSurroundingText(text.length + 128, 0, 0)
+                val after = connection.getSurroundingText(minOf(text.length, TargetPolicy.VERIFICATION_TAIL) + 128, 0, 0)
                 if (after != null && after.selectionStart == after.selectionEnd &&
                     TargetPolicy.verifyInsertion(text, cursor, after.text.toString(), after.selectionStart, after.offset)) {
                     return@withContext "inserted"

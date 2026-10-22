@@ -25,6 +25,19 @@ class TargetPolicyTest {
             assertFalse(TargetPolicy.sameTarget(target, it))
         }
     }
+    @Test fun growingEditorCanConfirmButChangedIdentityCannot() {
+        assertTrue(TargetPolicy.sameEditorAfterCommit(target, target.copy(bottom = 500)))
+        assertFalse(TargetPolicy.sameEditorAfterCommit(target, target.copy(viewId = "other")))
+        assertFalse(TargetPolicy.sameEditorAfterCommit(target, target.copy(windowId = 8)))
+        assertTrue(TargetPolicy.sameEditorAfterCommit(target.copy(viewId = null), target.copy(viewId = null, bottom = 500)))
+    }
+    @Test fun longInsertionCanBeConfirmedFromBoundedTailAndCursorAdvance() {
+        val inserted = "начало " + "а".repeat(5000) + " конец"
+        val tail = inserted.takeLast(4096)
+        assertTrue(TargetPolicy.verifyInsertion(inserted, 50, tail, tail.length, 50 + inserted.length - tail.length))
+        assertFalse(TargetPolicy.verifyInsertion(inserted, 50, tail, tail.length, 49 + inserted.length - tail.length))
+        assertFalse(TargetPolicy.verifyInsertion(inserted, 50, "б".repeat(4096), 4096, 50 + inserted.length - 4096))
+    }
     @Test fun verificationRequiresExpectedCursorAndActualInsertedText() {
         assertTrue(TargetPolicy.verifyInsertion("мир", 7, "привет мир", 10, 0))
         assertFalse(TargetPolicy.verifyInsertion("мир", 7, "привет мир", 9, 0))

@@ -36,10 +36,11 @@ class AppearanceTest {
             File(context.filesDir, "adaptive-icon.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             bitmap.recycle()
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                tap("Настройки"); tap("Светлая"); tap("Диктовка")
+                device.findObject(By.text("Позже"))?.click()
+                tap("Настройки"); tap("Светлая"); tap("Модели")
                 assertTrue("Light theme must have a light surface", luminance() > 0.5f)
                 device.takeScreenshot(File(context.filesDir, "material-light.png"))
-                tap("Настройки"); tap("Тёмная"); tap("Диктовка")
+                tap("Настройки"); tap("Тёмная"); tap("Модели")
                 assertTrue("Dark theme must have a dark surface", luminance() < 0.15f)
                 device.takeScreenshot(File(context.filesDir, "material-dark.png"))
                 scenario.recreate(); device.waitForIdle()

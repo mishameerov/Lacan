@@ -1,9 +1,7 @@
 package org.lacan.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.rememberScrollState
@@ -55,24 +52,47 @@ private val Line @Composable get() = MaterialTheme.colorScheme.outlineVariant
 private val Success @Composable get() = MaterialTheme.colorScheme.primary
 
 private enum class LacanTab(val title: String) {
-    Dictation("Диктовка"), Models("Модели"), History("История"), Settings("Настройки")
+    Models("Модели"), History("История"), Settings("Настройки")
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun LacanScreen(state: ScreenState, actions: UiActions) {
-    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(LacanTab.Dictation) }
+fun LacanScreen(
+    state: ScreenState,
+    actions: UiActions,
+    openSettingsRequest: Int = 0,
+    setupMessage: String? = null,
+    onSetupMessageConsumed: () -> Unit = {}
+) {
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(LacanTab.Models) }
     var confirmClear by remember { mutableStateOf(false) }
     val scrollStates = LacanTab.entries.map { rememberScrollState() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE) }
     var appearance by remember { mutableStateOf(Appearance.entries.firstOrNull { it.name == preferences.getString("theme", null) } ?: Appearance.System) }
 
+    val setupPreferences = remember(context) { context.getSharedPreferences("setup", android.content.Context.MODE_PRIVATE) }
+    var showSetup by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(!setupPreferences.getBoolean("presented", false) && state.nextSetupStep() != null)
+    }
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    androidx.compose.runtime.LaunchedEffect(openSettingsRequest) {
+        if (openSettingsRequest > 0) { tab = LacanTab.Settings; showSetup = false }
+    }
+    androidx.compose.runtime.LaunchedEffect(setupMessage) {
+        if (setupMessage != null) { snackbar.showSnackbar(setupMessage); onSetupMessageConsumed() }
+    }
+    androidx.compose.runtime.LaunchedEffect(showSetup, state.nextSetupStep()) {
+        if (showSetup) setupPreferences.edit().putBoolean("presented", true).apply()
+        if (state.nextSetupStep() == null) showSetup = false
+    }
+
     LacanTheme(appearance) {
         androidx.compose.material3.Scaffold(
+            snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) },
             topBar = {
                 androidx.compose.material3.TopAppBar(
-                    title = { Text(if (tab == LacanTab.Dictation) "Lacan" else tab.title) },
+                    title = { Text(tab.title) },
                     colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                 )
             },
@@ -82,7 +102,7 @@ fun LacanScreen(state: ScreenState, actions: UiActions) {
                         NavigationBarItem(
                             selected = tab == destination,
                             onClick = { tab = destination },
-                            icon = { androidx.compose.material3.Icon(destinationIcon(destination.ordinal), contentDescription = null) },
+                            icon = { androidx.compose.material3.Icon(destinationIcon(destination.ordinal + 1), contentDescription = null) },
                             label = { Text(destination.title, maxLines = 1) }
                         )
                     }
@@ -94,10 +114,9 @@ fun LacanScreen(state: ScreenState, actions: UiActions) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 when (tab) {
-                    LacanTab.Dictation -> DictationContent(state, actions) { tab = LacanTab.Models }
                     LacanTab.Models -> ModelsContent(state, actions)
                     LacanTab.History -> HistoryContent(state, actions, onClear = { confirmClear = true })
-                    LacanTab.Settings -> SettingsContent(state, actions, appearance) { value ->
+                    LacanTab.Settings -> SettingsContent(state, actions, appearance, onSetup = { showSetup = true }) { value ->
                         appearance = value
                         preferences.edit().putString("theme", value.name).apply()
                     }
@@ -105,6 +124,7 @@ fun LacanScreen(state: ScreenState, actions: UiActions) {
                 Spacer(Modifier.height(8.dp))
             }
         }
+        if (showSetup) SetupWizard(state, actions, onDismiss = { showSetup = false })
         if (confirmClear) {
             AlertDialog(
                 onDismissRequest = { confirmClear = false },
@@ -124,89 +144,13 @@ fun LacanScreen(state: ScreenState, actions: UiActions) {
 }
 
 @Composable
-private fun DictationContent(state: ScreenState, actions: UiActions, openModels: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (state.recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary))
-                    Spacer(Modifier.width(9.dp))
-                    Text(if (state.recording) "ИДЁТ ЗАПИСЬ" else if (state.busy) "ОБРАБОТКА" else "СОСТОЯНИЕ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
-                }
-                Text(state.status, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
-                if (!state.notificationsGranted) {
-                    Text("Разрешите уведомления в настройках: там доступны Стоп и Отмена, когда вы в другом приложении.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
-                }
-                if (!state.microphoneGranted) {
-                    Text("Для записи нужен доступ к микрофону. Его можно включить в настройках разрешений.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (state.recording) {
-                        Button(onClick = actions::stop, modifier = Modifier.weight(1f).height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-                            Text("Стоп", fontWeight = FontWeight.Bold)
-                        }
-                        OutlinedButton(onClick = actions::cancel, modifier = Modifier.weight(1f).height(52.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
-                            Text("Отмена")
-                        }
-                    } else if (state.busy) {
-                        OutlinedButton(onClick = actions::cancel, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
-                            Text("Отменить обработку")
-                        }
-                    } else {
-                        Button(
-                            onClick = actions::start,
-                            enabled = state.microphoneGranted && state.notificationsGranted && state.enabled && state.models.any { it.selected && it.installed },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Accent)
-                        ) { Text("Начать диктовку", fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
-        }
-
-        if (state.preview.isNotBlank()) {
-            ContentCard(title = "Предварительный текст", supporting = "Текст может уточняться до остановки записи.") {
-                SelectionContainer {
-                    Text(state.preview, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Предварительный текст, можно выделить и скопировать" }, style = MaterialTheme.typography.bodyLarge, color = Ink)
-                }
-            }
-        }
-
-        if (state.result.isNotBlank()) {
-            ContentCard(title = "Результат") {
-                SelectionContainer {
-                    Text(state.result, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Текст результата, можно выделить и скопировать" }, style = MaterialTheme.typography.bodyLarge, color = Ink)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = { actions.copy(state.result) }, modifier = Modifier.weight(1f).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Копировать") }
-                    OutlinedButton(onClick = actions::dismissResult, modifier = Modifier.weight(1f).height(48.dp)) { Text("Закрыть") }
-                }
-            }
-        }
-
-        ContentCard(title = "Язык распознавания", supporting = "Выбор действует для следующей диктовки.") {
-            LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("GigaAM v3 — русский с пунктуацией. Whisper, GigaAM Multilingual и Parakeet поддерживают русский и английский. Parakeet определяет язык автоматически; выбор языка к ней не применяется.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
-        }
-
-        if (state.models.none { it.selected && it.installed }) {
-            ContentCard(title = "Модель не выбрана", supporting = "Скачайте модель, чтобы начать локальное распознавание.") {
-                Button(onClick = openModels, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Выбрать модель") }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ModelsContent(state: ScreenState, actions: UiActions) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Скачайте модель или импортируйте локальный файл. Распознавание выполняется на устройстве.", style = MaterialTheme.typography.bodyMedium, color = MutedInk)
         if (state.models.isEmpty()) {
             EmptyCard("Каталог моделей пока пуст.")
         }
+        Text(state.status, style = MaterialTheme.typography.bodySmall, color = MutedInk)
         state.models.forEach { model ->
             val downloading = state.downloadingId == model.id
             OutlinedCard(
@@ -287,8 +231,11 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
 }
 
 @Composable
-private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: Appearance, onAppearance: (Appearance) -> Unit) {
+private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: Appearance, onSetup: () -> Unit, onAppearance: (Appearance) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ContentCard(title = "Настройка Lacan", supporting = state.setupBlockReason() ?: "Всё готово для диктовки в других приложениях.") {
+            OutlinedButton(onClick = onSetup, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Открыть мастер настройки") }
+        }
         ContentCard(title = "Оформление", supporting = "Системная тема следует настройкам Android.") {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Appearance.entries.forEach { item ->
@@ -311,7 +258,7 @@ private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: 
         }
         ContentCard(title = "Язык", supporting = "Настройка применяется при следующем запуске распознавания.") {
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("GigaAM v3 — русский с пунктуацией. Whisper, GigaAM Multilingual и Parakeet поддерживают русский и английский. Для Whisper можно выбрать «Русский» явно; Parakeet всегда определяет язык автоматически.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+            Text("GigaAM v3 — русский с пунктуацией. Parakeet поддерживает русский и английский и определяет язык автоматически; выбор языка к ней не применяется.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
     }
 }

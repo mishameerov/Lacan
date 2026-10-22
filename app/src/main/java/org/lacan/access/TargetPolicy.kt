@@ -9,6 +9,7 @@ internal data class TargetFacts(
 )
 
 internal object TargetPolicy {
+    const val VERIFICATION_TAIL = 4096
     fun eligible(target: TargetFacts, ownPackage: String, locked: Boolean): Boolean =
         !locked && target.packageName.isNotEmpty() && target.packageName != ownPackage &&
             target.editable && target.enabled && target.visible && !target.password &&
@@ -26,10 +27,15 @@ internal object TargetPolicy {
         a.packageName == b.packageName && a.windowId == b.windowId && a.viewId == b.viewId &&
             a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom
 
+    // A multiline editor may grow after commit. The caller also requires equality
+    // of the actual accessibility nodes, including fields without a resource ID.
+    fun sameEditorAfterCommit(a: TargetFacts, b: TargetFacts): Boolean =
+        a.packageName == b.packageName && a.windowId == b.windowId && a.viewId == b.viewId
+
     fun verifyInsertion(inserted: String, beforeCursor: Int, afterText: String,
                         afterSelection: Int, afterOffset: Int): Boolean =
         inserted.isNotEmpty() && beforeCursor >= 0 && afterOffset >= 0 &&
             afterSelection in 0..afterText.length &&
             afterOffset.toLong() + afterSelection == beforeCursor.toLong() + inserted.length &&
-            afterText.substring(0, afterSelection).endsWith(inserted)
+            afterText.substring(0, afterSelection).endsWith(inserted.takeLast(VERIFICATION_TAIL))
 }

@@ -85,7 +85,7 @@ class AppRuntime(private val context: Context) {
         refreshReadiness()
     }
     private fun refreshReadiness() {
-        mutable.update { it.copy(readyToRecord = it.enabled && it.microphoneGranted && it.notificationsGranted &&
+        mutable.update { it.copy(readyToRecord = it.setupBlockReason() == null &&
             !modelMutation && engine != null && engineKey == "$selected:${it.language}") }
     }
     private fun refreshModels() {
@@ -215,7 +215,7 @@ class AppRuntime(private val context: Context) {
         val s = try { Session(token, spec, state.value.language, AudioSpool(File(context.cacheDir, "audio/${UUID.randomUUID()}.pcm"))) }
         catch (_: Exception) { gate.finish(token); message("Нет места для временной записи"); onFinished(); return }
         current = s
-        mutable.update { it.copy(busy = true, recording = false, preview = "", result = "", audioLevel = 0f,
+        mutable.update { it.copy(busy = true, recording = false, cancelling = false, preview = "", result = "", audioLevel = 0f,
             recordingStartedAtMillis = s.monotonicStarted, recordingElapsedMillis = 0L, status = "Запуск микрофона…") }
         val capture = AudioCapture(onSamples = { buffer, count ->
             val remaining = (9_600_000L - s.spool.sampleCount).coerceAtLeast(0).toInt()
@@ -261,7 +261,7 @@ class AppRuntime(private val context: Context) {
         s.cancelled.set(true); gate.cancel(s.token); s.capture?.stop()
         // Native cancel only sets an atomic flag; actual close stays on serialized worker.
         engine?.cancel()
-        mutable.update { it.copy(recording = false, audioLevel = 0f, recordingElapsedMillis = s.stopElapsed(), preview = "", status = "Отменяю…") }
+        mutable.update { it.copy(recording = false, cancelling = true, audioLevel = 0f, recordingElapsedMillis = s.stopElapsed(), preview = "", status = "Отменяю…") }
     }
     private suspend fun process(s: Session, onFinished: () -> Unit) {
         val assembler = TranscriptAssembler()
@@ -336,7 +336,7 @@ class AppRuntime(private val context: Context) {
                 try { s.spool.delete() } catch (_: Exception) { message("Не удалось удалить временный файл; он будет очищен при следующем запуске") }
                 finally {
                     gate.finish(s.token); if (current === s) current = null
-                    mutable.update { it.copy(busy = false, recording = false, audioLevel = 0f, preview = "") }; onFinished()
+                    mutable.update { it.copy(busy = false, recording = false, cancelling = false, audioLevel = 0f, preview = "") }; onFinished()
                 }
             }
         }
