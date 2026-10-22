@@ -166,10 +166,9 @@ class TranscriptAssembler {
         if (overlap) {
             val limit = minOf(8, previous.size, incoming.size)
             for (length in limit downTo 1) {
-                if ((0 until length).all {
-                    val a = word(previous[previous.size - length + it])
-                    a.isNotEmpty() && a == word(incoming[it])
-                }) {
+                val old = previous.takeLast(length).map(::word)
+                val fresh = incoming.take(length).map(::word)
+                if (sameBoundary(old, fresh)) {
                     skip = length
                     break
                 }
@@ -180,7 +179,41 @@ class TranscriptAssembler {
         return this.text
     }
 
-    private fun word(value: String) = value.trim { !it.isLetterOrDigit() }.lowercase(Locale.ROOT)
+    private fun word(value: String) = value.trim { !it.isLetterOrDigit() }
+        .lowercase(Locale.ROOT).replace('ё', 'е')
+
+    /** Compare only equal-length boundary spans. Never infer missing words or remove a phrase globally. */
+    private fun sameBoundary(old: List<String>, fresh: List<String>): Boolean {
+        if (old.any(String::isEmpty) || fresh.any(String::isEmpty)) return false
+        val differences = old.indices.filter { old[it] != fresh[it] }
+        if (differences.isEmpty()) return true
+        // A single uncertain long word needs two exact neighbours, including one substantial anchor.
+        // Short words, negation and numbers must never become fuzzy matches.
+        if (old.size < 3 || differences.size != 1) return false
+        val changed = differences.single()
+        if (old.indices.none { it != changed && old[it].length >= 4 && old[it].all(Char::isLetter) }) return false
+        val a = old[changed]
+        val b = fresh[changed]
+        if (minOf(a.length, b.length) < 5 || !a.all(Char::isLetter) || !b.all(Char::isLetter)) return false
+        return oneLetterEdit(a, b)
+    }
+
+    private fun oneLetterEdit(a: String, b: String): Boolean {
+        if (kotlin.math.abs(a.length - b.length) > 1) return false
+        var left = 0
+        var right = 0
+        var edits = 0
+        while (left < a.length && right < b.length) {
+            if (a[left] == b[right]) { left++; right++; continue }
+            if (++edits > 1) return false
+            when {
+                a.length > b.length -> left++
+                b.length > a.length -> right++
+                else -> { left++; right++ }
+            }
+        }
+        return edits + (a.length - left) + (b.length - right) <= 1
+    }
 }
 
 /** Cancel rejects callbacks immediately but remains busy until native work returns and finish runs. */
