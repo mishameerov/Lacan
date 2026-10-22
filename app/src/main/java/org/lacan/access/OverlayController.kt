@@ -53,6 +53,8 @@ class OverlayController(private val context: Context) : AutoCloseable {
     private var bubbleSurface: OverlayGlassWindow? = null
     private var panelAnimator: ValueAnimator? = null
     private var panelLayout: PanelLayout? = null
+    private var panelAnimation: OverlayPanelAnimation? = null
+    private var panelProgress = 300f
     private var collapsingToIdle = false
     private var controlLossReported = false
     private var anchorX = if (preferences.getFloat("x", 1f) < .5f) 0f else 1f
@@ -110,8 +112,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
     }
 
     private fun show(mode: String, state: ScreenState) {
-        val inFlight = panelAnimator?.takeIf { it.isRunning }
-        val resumeAt = if (inFlight != null && !collapsingToIdle) (inFlight.animatedValue as? Float) ?: 0f else null
+        val resumeAt = if (panelAnimator != null && !collapsingToIdle) panelProgress else null
         clearSurfaces()
         cancelPanelAnimator()
         collapsingToIdle = false
@@ -151,12 +152,8 @@ class OverlayController(private val context: Context) : AutoCloseable {
             }
         }
         if (expanded && cancelSurface != null) {
-            val toLeft = anchorX >= .5f
-            val stageCancelX = if (toLeft) ax - 2 * (size + gap) else ax + 2 * (size + gap)
-            val stageBubbleX = if (toLeft) ax - (size + gap) else ax + size + gap
-            panelLayout = PanelLayout(ax, ay, cancelX,
-                bubbleX = previewStart, bubbleWidth = previewWidth, stageCancelX = stageCancelX,
-                stageBubbleX = stageBubbleX)
+            panelLayout = PanelLayout(OverlayPanelGeometry(ax, cancelX,
+                bubbleX = previewStart, bubbleWidth = previewWidth, size = size, gap = gap), ay)
         }
         // Keep the main control above the cancel button and bubble.
         addSurface(control, size, startX, ay, BLUE)
@@ -265,17 +262,17 @@ class OverlayController(private val context: Context) : AutoCloseable {
         }
     }
 
-    private data class PanelLayout(
-        val mainX: Int,
-        val y: Int,
-        val cancelX: Int,
-        val bubbleX: Int,
-        val bubbleWidth: Int,
-        val stageCancelX: Int,
-        val stageBubbleX: Int
-    )
+    private data class PanelLayout(val geometry: OverlayPanelGeometry, val y: Int)
 
     private fun animatePanel(from: Float, to: Float) {
+        val layout = panelLayout ?: return
+        val cancel = cancelSurface ?: return
+        val animation = OverlayPanelAnimation(context, lastArea.first, layout.y, layout.geometry,
+            cancel.snapshotContent(), bubbleSurface?.snapshotContent(), RED, PILL)
+        panelAnimation = animation
+        cancel.setVisible(false)
+        bubbleSurface?.setVisible(false)
+        animation.show()
         lateinit var animator: ValueAnimator
         animator = ValueAnimator.ofFloat(from, to).apply {
             duration = kotlin.math.abs(to - from).toLong().coerceAtLeast(1L)
@@ -285,6 +282,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
                 override fun onAnimationEnd(animation: Animator) {
                     if (panelAnimator !== animator) return
                     panelAnimator = null
+                    finishPanelAnimation(revealSettled = !collapsingToIdle)
                     if (collapsingToIdle) {
                         collapsingToIdle = false
                         lastState?.let { show("idle", it) }
@@ -294,53 +292,38 @@ class OverlayController(private val context: Context) : AutoCloseable {
         }
         panelAnimator = animator
         applyPanelProgress(from)
-        animator.start()
+        // Starting before attachment can consume the separation phase while Android
+        // creates the surface. Start the 300 ms clock at its first drawable frame.
+        animation.afterFirstLayout { if (panelAnimator === animator) animator.start() }
     }
 
     private fun applyPanelProgress(milliseconds: Float) {
-        val layout = panelLayout ?: return
-        val cancel = cancelSurface ?: return
-        val main = layout.mainX
-        val phase = milliseconds.coerceIn(0f, 300f)
-        val bubble = bubbleSurface
-        if (bubble == null) {
-            val cancelX = if (phase <= 120f) lerp(main.toFloat(), layout.cancelX.toFloat(), phase / 120f)
-                else layout.cancelX.toFloat()
-            cancel.setBounds(cancelX.roundToInt(), layout.y, size)
-            return
-        }
-        val cancelX: Float
-        val bubbleX: Float
-        val bubbleWidth: Float
-        if (phase <= 120f) {
-            val p = phase / 120f
-            cancelX = lerp(main.toFloat(), layout.stageCancelX.toFloat(), p)
-            bubbleX = lerp(main.toFloat(), layout.stageBubbleX.toFloat(), p)
-            bubbleWidth = size.toFloat()
-        } else {
-            val p = (phase - 120f) / 180f
-            cancelX = lerp(layout.stageCancelX.toFloat(), layout.cancelX.toFloat(), p)
-            bubbleX = lerp(layout.stageBubbleX.toFloat(), layout.bubbleX.toFloat(), p)
-            bubbleWidth = lerp(size.toFloat(), layout.bubbleWidth.toFloat(), p)
-        }
-        cancel.setBounds(cancelX.roundToInt(), layout.y, size)
-        bubble.setBounds(bubbleX.roundToInt(), layout.y, bubbleWidth.roundToInt().coerceAtLeast(size))
+        panelProgress = milliseconds.coerceIn(0f, 300f)
+        panelAnimation?.drawFrame(panelProgress)
     }
 
     private fun collapseToIdle() {
-        val current = panelAnimator?.takeIf { it.isRunning }?.animatedValue as? Float ?: 300f
+        val current = if (panelAnimator != null) panelProgress else 300f
         cancelPanelAnimator()
         collapsingToIdle = true
         animatePanel(current, 0f)
+    }
+
+    private fun finishPanelAnimation(revealSettled: Boolean) {
+        if (revealSettled) {
+            cancelSurface?.setVisible(true)
+            bubbleSurface?.setVisible(true)
+        }
+        panelAnimation?.close()
+        panelAnimation = null
     }
 
     private fun cancelPanelAnimator() {
         val old = panelAnimator
         panelAnimator = null
         old?.cancel()
+        finishPanelAnimation(revealSettled = true)
     }
-
-    private fun lerp(start: Float, end: Float, progress: Float) = start + (end - start) * progress
 
     private fun icon(resource: Int) = ImageView(context).apply {
         setImageResource(resource)
@@ -382,7 +365,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
             if (collapsingToIdle) return@setOnTouchListener true
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (panelAnimator?.isRunning == true && !collapsingToIdle) {
+                    if (panelAnimator != null && !collapsingToIdle) {
                         applyPanelProgress(300f)
                         cancelPanelAnimator()
                     }

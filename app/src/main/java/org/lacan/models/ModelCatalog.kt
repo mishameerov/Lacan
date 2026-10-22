@@ -58,7 +58,7 @@ object ModelCatalog {
             ModelFile("large-v3-decoder.int8.onnx", whisperLargeOnnx + "large-v3-decoder.int8.onnx", "ebc6bfd88e162a46cb3edee8a7e727e1dcbc65cabecb19e2573695e4d495e1af", 1008265203),
             ModelFile("large-v3-tokens.txt", whisperLargeOnnx + "large-v3-tokens.txt", "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126", 816730)
         ), "sherpa-whisper", featureDim = 128),
-        ModelSpec("parakeet-tdt-0-6b-v3", "NVIDIA Parakeet TDT v3 · CPU", "Русский, английский и ещё 23 языка. 670 МБ; пунктуация и регистр, автоопределение языка. NVIDIA, CC BY 4.0. Распознавание на CPU.", listOf(
+        ModelSpec("parakeet-tdt-0-6b-v3", "Parakeet TDT v3 · NVIDIA", "Русский, английский и ещё 23 языка.", listOf(
             ModelFile("encoder.int8.onnx", parakeet + "encoder.int8.onnx", "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247", 652184281),
             ModelFile("decoder.int8.onnx", parakeet + "decoder.int8.onnx", "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e", 11845275),
             ModelFile("joiner.int8.onnx", parakeet + "joiner.int8.onnx", "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3", 6355277),
@@ -73,17 +73,17 @@ object ModelCatalog {
             ModelFile("gigaam_v3_e2e_ctc_int8.onnx", giga + "gigaam_v3_e2e_ctc_int8.onnx", "0aacb41f70f0f5aaac4b45dd430337b9e16b180f22c72af04db8516e7609c3c0", 319869121),
             ModelFile("gigaam_v3_e2e_ctc_tokens.txt", giga + "gigaam_v3_e2e_ctc_tokens.txt", "f8eb9b115e2748db9c40a5897cae11dd0678cc0b40fd7e25f8c43b3bf28715e4", 2006)
         ), "sherpa", featureDim = 64),
-        ModelSpec("gigaam-v3-fp32", "GigaAM v3 FP32 · CPU", "Русский, с пунктуацией. 886 МБ; полная точность FP32, распознавание на CPU. Для английского и смешанной речи используйте Parakeet.", listOf(
+        ModelSpec("gigaam-v3-fp32", "GigaAM v3 · Сбер", "Русский язык.", listOf(
             ModelFile("gigaam_v3_e2e_ctc.onnx", giga + "gigaam_v3_e2e_ctc.onnx", "1f3a714b76877724eda494d77e7ed0d15f1c003c60928c9cb03f21d81dc68cc5", 885950432),
             ModelFile("gigaam_v3_e2e_ctc_tokens.txt", giga + "gigaam_v3_e2e_ctc_tokens.txt", "f8eb9b115e2748db9c40a5897cae11dd0678cc0b40fd7e25f8c43b3bf28715e4", 2006)
         ), "sherpa", featureDim = 64),
-        ModelSpec("gigaam-multilingual-large", "GigaAM Multilingual 600M int8 · экспериментальная", "Русский и английский. 592 МБ; более крупная GigaAM, без пунктуации, строчные буквы. Требует много ОЗУ; скорость зависит от устройства.", listOf(
+        ModelSpec("gigaam-multilingual-large", "GigaAM Multilingual 600M · Сбер", "Русский, английский, казахский, кыргызский и узбекский.", listOf(
             ModelFile("gigaam_multilingual_large_int8.onnx", gigaMultilingual + "model.int8.onnx", "6b6f195026b0f90721cd4593c664becf009a71131550b664eec71446ec351c81", 591645642),
             ModelFile("gigaam_multilingual_large_tokens.txt", gigaMultilingual + "tokens.txt", "9b5df7987cb4ca52c1a468649ce897fab1cd182067416e29fef49dfaa7a856c2", 391)
         ), "sherpa", featureDim = 64)
     )
-    // Keep experimental definitions for reproducibility; only these two are offered for daily tests.
-    val activeModels = listOf("gigaam-v3-fp32", "parakeet-tdt-0-6b-v3").map { id -> models.single { it.id == id } }
+    // Keep experimental definitions for reproducibility; offer these three for daily tests.
+    val activeModels = listOf("gigaam-v3-fp32", "gigaam-multilingual-large", "parakeet-tdt-0-6b-v3").map { id -> models.single { it.id == id } }
     fun activeSelection(previous: String): String = when {
         activeModels.any { it.id == previous } -> previous
         previous.startsWith("parakeet") -> "parakeet-tdt-0-6b-v3"

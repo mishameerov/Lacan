@@ -4,8 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ModelCatalogTest {
-    @Test fun dailyModelsAndPreviousSelectionsUseCpu() {
-        assertEquals(listOf("gigaam-v3-fp32", "parakeet-tdt-0-6b-v3"), ModelCatalog.activeModels.map { it.id })
+    @Test fun dailyModelsIncludeBothGigaAmVariantsAndParakeet() {
+        assertEquals(listOf("gigaam-v3-fp32", "gigaam-multilingual-large", "parakeet-tdt-0-6b-v3"), ModelCatalog.activeModels.map { it.id })
+        assertEquals("GigaAM v3 · Сбер", ModelCatalog.activeModels[0].title)
+        assertEquals("GigaAM Multilingual 600M · Сбер", ModelCatalog.activeModels[1].title)
+        assertEquals("Parakeet TDT v3 · NVIDIA", ModelCatalog.activeModels[2].title)
+        assertEquals("Русский язык.", ModelCatalog.activeModels[0].description)
+        assertEquals("Русский, английский, казахский, кыргызский и узбекский.", ModelCatalog.activeModels[1].description)
+        assertEquals("Русский, английский и ещё 23 языка.", ModelCatalog.activeModels[2].description)
+        ModelCatalog.activeModels.forEach { model ->
+            assertFalse(model.description.contains("МБ"))
+            assertFalse(model.description.contains("CPU"))
+            assertFalse(model.description.contains("int8"))
+        }
         assertEquals("gigaam-v3-fp32", ModelCatalog.activeSelection("gigaam-v3-fp32-gpu"))
         assertEquals("parakeet-tdt-0-6b-v3", ModelCatalog.activeSelection("parakeet-tdt-gpu"))
         assertEquals("gigaam-v3-fp32", ModelCatalog.activeSelection("whisper-medium-onnx"))

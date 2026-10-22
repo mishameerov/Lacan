@@ -168,11 +168,6 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                         Spacer(Modifier.width(8.dp))
                         Text("${model.sizeMb} МБ", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Ink)
                     }
-                    if (model.sizeMb >= 200) {
-                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.medium) {
-                            Text("Требовательная модель · ${model.sizeMb} МБ на устройстве. Загрузка и распознавание могут занять больше времени.", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                        }
-                    }
                     if (downloading) {
                         val progress = state.downloadProgress.coerceIn(0f, 1f)
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = Accent, trackColor = SoftAccent)
@@ -195,7 +190,7 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                                     Text("Импортировать .mnn")
                                 }
                                 model.downloadable -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-                                    Text("Скачать · ${model.sizeMb} МБ")
+                                    Text("Скачать")
                                 }
                             }
                         }
@@ -258,7 +253,7 @@ private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: 
         }
         ContentCard(title = "Язык", supporting = "Настройка применяется при следующем запуске распознавания.") {
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
-            Text("GigaAM v3 — русский с пунктуацией. Parakeet поддерживает русский и английский и определяет язык автоматически; выбор языка к ней не применяется.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
+            Text("GigaAM Multilingual и Parakeet определяют язык автоматически.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
     }
 }

@@ -2,6 +2,8 @@ package org.lacan.access
 
 import android.app.Dialog
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -15,7 +17,7 @@ import kotlin.math.roundToInt
 /** A separate rounded window lets Android blur the backdrop of each disjoint overlay surface. */
 internal class OverlayGlassWindow(
     private val context: Context,
-    content: View,
+    private val content: View,
     private var width: Int,
     private val height: Int,
     var x: Int,
@@ -65,11 +67,26 @@ internal class OverlayGlassWindow(
         }
     }
 
-    fun setBounds(x: Int, y: Int, width: Int) {
-        this.x = x
-        this.y = y
-        this.width = width
-        position()
+    fun setVisible(visible: Boolean) {
+        // Commit input exclusion and zero obscuring opacity together. Decor visibility
+        // alone can reach WindowManager later than the animation surface attaches.
+        window.attributes = window.attributes.apply {
+            alpha = if (visible) 1f else 0f
+            flags = if (visible) flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                else flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        window.decorView.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+    }
+
+    fun snapshotContent(): Bitmap {
+        // Newly attached windows may not have traversed yet. Measure their fixed settled
+        // content once; the animator only clips this snapshot, never reflows live text.
+        if (content.width != width || content.height != height) {
+            content.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            content.layout(0, 0, width, height)
+        }
+        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { content.draw(Canvas(it)) }
     }
 
     private fun applyGlass(blurEnabled: Boolean) {
