@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     kotlin("android")
@@ -9,6 +11,22 @@ android {
     compileSdk = 36
     buildToolsVersion = "36.0.0"
     ndkVersion = "27.2.12479018"
+    val signingFile = rootProject.file("keystore.properties")
+    if (signingFile.isFile) {
+        val signing = Properties().apply { signingFile.inputStream().use { load(it) } }
+        signingConfigs.create("distribution") {
+            storeFile = rootProject.file(signing.getProperty("storeFile"))
+            storePassword = signing.getProperty("storePassword")
+            keyAlias = signing.getProperty("keyAlias")
+            keyPassword = signing.getProperty("keyPassword")
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            isDebuggable = false
+            signingConfig = signingConfigs.findByName("distribution")
+        }
+    }
     defaultConfig {
         applicationId = "org.lacan"
         minSdk = 33
