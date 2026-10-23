@@ -28,6 +28,7 @@ class LacanAccessibilityService : AccessibilityService() {
     private val runtime get() = LacanApp.runtime
     private var editorGeneration = 0L
     private var composing = false
+    private var wasEligible = false
 
     override fun onCreateInputMethod(): InputMethod = object : InputMethod(this) {
         override fun onStartInput(attribute: EditorInfo, restarting: Boolean) { editorGeneration++; composing = false }
@@ -93,6 +94,9 @@ class LacanAccessibilityService : AccessibilityService() {
         val eligible = target != null && TargetPolicy.eligible(target, packageName, isLocked) &&
             editor?.packageName == target.packageName && !TargetPolicy.passwordInputType(editor.inputType)
         val keyboard = runCatching { windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } }.getOrDefault(false)
+        val visibleTarget = eligible && keyboard && !isLocked
+        if (visibleTarget && !wasEligible) runtime.prepareModel()
+        wasEligible = visibleTarget
         overlay?.update(runtime.state.value, eligible, keyboard, isLocked)
     }
 

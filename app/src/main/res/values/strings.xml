@@ -5,7 +5,12 @@
     <style name="Theme.Lacan" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item><item name="android:colorAccent">#E75227</item>
     </style>
-    <style name="Theme.Lacan.Launch" parent="android:style/Theme.Material.Light.Dialog.NoActionBar">
-        <item name="android:windowCloseOnTouchOutside">false</item><item name="android:windowMinWidthMajor">70%</item><item name="android:windowMinWidthMinor">80%</item><item name="android:backgroundDimAmount">0.15</item>
+    <style name="Theme.Lacan.Launch" parent="android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
     </style>
 </resources>

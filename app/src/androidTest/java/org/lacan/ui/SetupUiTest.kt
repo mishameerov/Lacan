@@ -58,6 +58,34 @@ class SetupUiTest {
         assertFalse("No permission dialog should be launched by a synthetic state change", device.hasObject(By.text("Разрешить микрофон")))
     }
 
+    @Test fun pendingDownloadOffersNextAndQueuedCancellationWithoutGrantingPermissions() = withScreen(showWizard = true) { scenario ->
+        val snapshot = mutableStateOf(ScreenState(
+            models = installedModels.map { it.copy(installed = false, selected = false) },
+            setupModelId = "gigaam", downloadingId = "gigaam", downloadProgress = 0.25f,
+            queuedDownloadIds = setOf("parakeet"), status = "Загрузка модели…"
+        ))
+        var cancelledId: String? = null
+        val actions = object : UiActions by NoOpActions {
+            override fun cancelDownload(id: String) { cancelledId = id }
+        }
+        scenario.onActivity { activity ->
+            activity.setContent { key("synthetic-downloading-setup") { LacanScreen(snapshot.value, actions) } }
+        }
+        visible("Далее")
+        assertFalse(device.hasObject(By.text("Позже")))
+        val queue = device.wait(Until.findObject(By.text("В очереди · 0%")), 5000)
+        assertTrue("Queued model must show zero progress", queue != null)
+        val cancelButtons = device.findObjects(By.text("Отменить"))
+        assertTrue("Both active and queued models can be cancelled", cancelButtons.size == 2)
+        cancelButtons.last().click()
+        instrument.waitForIdleSync()
+        assertTrue("Cancellation must target the queued model", cancelledId == "parakeet")
+        device.findObject(By.text("Далее")).click()
+        visible("Разрешите микрофон")
+        assertFalse("Continuing setup must not grant microphone access", snapshot.value.microphoneGranted)
+        assertTrue("Dictation remains blocked until installation", snapshot.value.setupBlockReason() != null)
+    }
+
     @Test fun settingsRequestHidesWizardAndShowsReasonInSnackbar() = withScreen(showWizard = true) { scenario ->
         val request = mutableStateOf(0)
         val message = mutableStateOf<String?>(null)

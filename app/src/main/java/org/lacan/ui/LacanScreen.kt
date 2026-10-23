@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +37,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -49,7 +55,7 @@ private val CardPaper @Composable get() = MaterialTheme.colorScheme.surfaceConta
 private val Accent @Composable get() = MaterialTheme.colorScheme.primary
 private val SoftAccent @Composable get() = MaterialTheme.colorScheme.primaryContainer
 private val Line @Composable get() = MaterialTheme.colorScheme.outlineVariant
-private val Success @Composable get() = MaterialTheme.colorScheme.primary
+private val Success @Composable get() = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFF81C784) else Color(0xFF2E7D32)
 
 private enum class LacanTab(val title: String) {
     Models("Модели"), History("История"), Settings("Настройки")
@@ -153,6 +159,7 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
         Text(state.status, style = MaterialTheme.typography.bodySmall, color = MutedInk)
         state.models.forEach { model ->
             val downloading = state.downloadingId == model.id
+            val queued = model.id in state.queuedDownloadIds && state.downloadingId != model.id
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
@@ -163,17 +170,18 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                     Row(verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
                             Text(model.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+                            RecommendedModelLabel(model.id)
                             Text(model.description, style = MaterialTheme.typography.bodyMedium, color = MutedInk)
                         }
                         Spacer(Modifier.width(8.dp))
                         Text("${model.sizeMb} МБ", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Ink)
                     }
-                    if (downloading) {
-                        val progress = state.downloadProgress.coerceIn(0f, 1f)
+                    if (downloading || queued) {
+                        val progress = (state.downloadProgressById[model.id] ?: if (queued) 0f else state.downloadProgress).coerceIn(0f, 1f)
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = Accent, trackColor = SoftAccent)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${if (model.localImportSupported) "Импорт" else "Загрузка"} · ${(progress * 100).toInt()}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MutedInk)
-                            TextButton(onClick = actions::cancelDownload, modifier = Modifier.height(48.dp)) { Text("Отменить") }
+                            Text(if (queued) "В очереди · ${(progress * 100).toInt()}%" else "${if (model.localImportSupported) "Импорт" else "Загрузка"} · ${(progress * 100).toInt()}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MutedInk)
+                            TextButton(onClick = { actions.cancelDownload(model.id) }, modifier = Modifier.height(48.dp)) { Text("Отменить") }
                         }
                     } else {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -189,15 +197,25 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                                 model.localImportSupported -> Button(onClick = { actions.importModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                                     Text("Импортировать .mnn")
                                 }
-                                model.downloadable -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                                model.downloadable -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                                     Text("Скачать")
                                 }
                             }
                         }
                     }
+                    state.downloadErrors[model.id]?.let { error ->
+                        Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+internal fun RecommendedModelLabel(modelId: String) {
+    if (modelId == "gigaam-v3-fp32") {
+        Text("Рекомендуемая", style = MaterialTheme.typography.labelSmall, color = Success)
     }
 }
 
@@ -266,10 +284,15 @@ private fun PermissionRow(title: String, description: String, granted: Boolean, 
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Ink)
                 Text(description, style = MaterialTheme.typography.bodySmall, color = MutedInk)
             }
-            Text(if (granted) "Есть" else "Нет", style = MaterialTheme.typography.labelLarge, color = if (granted) Success else MutedInk, fontWeight = FontWeight.SemiBold)
+            androidx.compose.material3.Icon(
+                imageVector = if (granted) permissionCheckIcon else permissionCrossIcon,
+                contentDescription = if (granted) "Разрешение включено" else "Разрешение не включено",
+                tint = if (granted) Success else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(24.dp)
+            )
         }
-        TextButton(onClick = onAction, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-            Text(if (granted) "Разрешение включено · настройки" else actionLabel, modifier = Modifier.fillMaxWidth())
+        if (!granted) TextButton(onClick = onAction, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+            Text(actionLabel, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -307,3 +330,11 @@ private fun EmptyCard(message: String) {
         Text(message, modifier = Modifier.fillMaxWidth().padding(18.dp), style = MaterialTheme.typography.bodyMedium, color = MutedInk)
     }
 }
+
+private fun permissionIcon(name: String, path: String): ImageVector =
+    ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+        .addPath(pathData = PathParser().parsePathString(path).toNodes(), fill = SolidColor(Color.Black))
+        .build()
+
+private val permissionCheckIcon = permissionIcon("PermissionGranted", "M9,16.17L4.83,12l-1.42,1.41L9,19L21,7l-1.41,-1.41z")
+private val permissionCrossIcon = permissionIcon("PermissionMissing", "M19,6.41L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12z")

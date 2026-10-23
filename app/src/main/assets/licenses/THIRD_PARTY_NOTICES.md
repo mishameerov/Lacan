@@ -6499,3 +6499,7 @@ SOFTWARE.
 - kaldi-native-fbank 1.22.3, Apache-2.0: https://github.com/csukuangfj/kaldi-native-fbank .
 - kissfft, BSD-3-Clause, commit `febd4caeed32e33ad8b2e0bb5ea77542c40f18ec`: https://github.com/mborgerding/kissfft . Full notices are bundled under assets/licenses.
 - GigaAM v3 FP32 weights and bundled CTC tokens retain the GigaAM MIT license listed above. MNN conversion preserves FP32 weights; converted weights are imported separately and are not bundled in the APK.
+
+## AndroidX WorkManager
+
+AndroidX WorkManager 2.10.5, The Android Open Source Project, Apache License 2.0 (license text included above). Used for persistent queued model downloads. Source: https://android.googlesource.com/platform/frameworks/support/+/androidx-main/work/

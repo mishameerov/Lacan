@@ -16,9 +16,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 import org.lacan.ui.LacanScreen
 import org.lacan.ui.UiActions
 
@@ -30,7 +27,6 @@ class MainActivity : ComponentActivity() {
 
     private val runtime get() = LacanApp.runtime
     private var importingModelId: String? = null
-    private var pendingSetupModelId: String? = null
     private var openSettingsRequest by mutableIntStateOf(0)
     private var setupMessage by mutableStateOf<String?>(null)
     private val permissionPreferences by lazy { getSharedPreferences("permission_requests", MODE_PRIVATE) }
@@ -52,20 +48,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         importingModelId = savedInstanceState?.getString("importingModelId")
-        pendingSetupModelId = savedInstanceState?.getString("pendingSetupModelId")
         handleIntent(intent)
-        lifecycleScope.launch {
-            runtime.state.collect { state ->
-                val id = pendingSetupModelId
-                if (id != null && state.downloadingId == null && state.models.any { it.id == id && it.installed }) {
-                    pendingSetupModelId = null
-                    runtime.selectModel(id)
-                } else if (id != null && state.downloadingId == null &&
-                    (state.status.startsWith("Не удалось") || state.status.contains("отменена"))) {
-                    pendingSetupModelId = null
-                }
-            }
-        }
         setContent {
             LacanScreen(
                 runtime.state.collectAsStateWithLifecycle().value, actions,
@@ -90,7 +73,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         importingModelId?.let { outState.putString("importingModelId", it) }
-        pendingSetupModelId?.let { outState.putString("pendingSetupModelId", it) }
         super.onSaveInstanceState(outState)
     }
 
@@ -150,12 +132,9 @@ class MainActivity : ComponentActivity() {
             importDocument.launch(arrayOf("*/*"))
         }
         override fun download(id: String) = runtime.download(id)
-        override fun downloadForSetup(id: String) {
-            if (runtime.state.value.busy || runtime.state.value.recording || runtime.state.value.downloadingId != null) return
-            pendingSetupModelId = id
-            runtime.download(id)
-        }
-        override fun cancelDownload() { pendingSetupModelId = null; runtime.cancelDownload() }
+        override fun downloadForSetup(id: String) = runtime.downloadForSetup(id)
+        override fun cancelDownload() = runtime.cancelDownload()
+        override fun cancelDownload(id: String) = runtime.cancelDownload(id)
         override fun selectModel(id: String) = runtime.selectModel(id)
         override fun removeModel(id: String) = runtime.removeModel(id)
         override fun start() { startActivity(Intent(this@MainActivity, LaunchDictationActivity::class.java)) }

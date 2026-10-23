@@ -13,8 +13,8 @@ android {
         applicationId = "org.lacan"
         minSdk = 33
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.1.10-prototype"
+        versionCode = 12
+        versionName = "0.1.11-prototype"
         testInstrumentationRunner = providers.gradleProperty("lacanTestRunner").getOrElse("androidx.test.runner.AndroidJUnitRunner")
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DCMAKE_BUILD_TYPE=Release") } }
@@ -36,6 +36,7 @@ dependencies {
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation(files("libs/sherpa-onnx-1.12.32.aar"))
     implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
     implementation("androidx.activity:activity-compose:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation(platform("androidx.compose:compose-bom:2025.12.01"))

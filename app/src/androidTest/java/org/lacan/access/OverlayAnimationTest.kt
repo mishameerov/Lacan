@@ -50,13 +50,13 @@ class OverlayAnimationTest {
                 instance.update(idle, true, true, false)
                 instance.update(recording, true, true, false)
                 val animator = field(instance, "panelAnimator") as ValueAnimator
-                assertEquals("Expansion duration", 300L, animator.duration)
+                assertEquals("Expansion duration", OverlayPanelGeometry.DURATION_MS.toLong(), animator.duration)
                 assertEquals(3, surfaces(instance).size)
                 val layout = field(instance, "panelLayout")!!
                 val geometry = field(layout, "geometry") as OverlayPanelGeometry
                 val size = dp(38.5f)
                 val gap = dp(10f)
-                val stage = geometry.frame(120f)
+                val stage = geometry.frame(OverlayPanelGeometry.SEPARATION_MS.toFloat())
                 assertEquals(size.toFloat(), stage.bubbleWidth, 0f)
                 if (geometry.mainX > geometry.cancelX) {
                     assertEquals(gap.toFloat(), geometry.mainX - stage.bubbleX - size, .01f)
@@ -65,21 +65,21 @@ class OverlayAnimationTest {
                     assertEquals(gap.toFloat(), stage.bubbleX - geometry.mainX - size, .01f)
                     assertEquals(gap.toFloat(), stage.cancelX - stage.bubbleX - size, .01f)
                 }
-                val expanded = geometry.frame(300f)
+                val expanded = geometry.frame(OverlayPanelGeometry.DURATION_MS.toFloat())
                 assertTrue(expanded.bubbleWidth > size)
                 assertEquals(geometry.cancelX.toFloat(), expanded.cancelX, 0f)
                 assertEquals(geometry.bubbleX.toFloat(), expanded.bubbleX, 0f)
 
-                invoke(instance, "applyPanelProgress", 300f)
+                invoke(instance, "applyPanelProgress", OverlayPanelGeometry.DURATION_MS.toFloat())
                 invoke(instance, "cancelPanelAnimator")
                 instance.update(idle, true, true, false)
-                assertEquals("Collapse duration", 300L, (field(instance, "panelAnimator") as ValueAnimator).duration)
-                invoke(instance, "applyPanelProgress", 120f)
-                assertEquals(size.toFloat(), geometry.frame(120f).bubbleWidth, 0f)
+                assertEquals("Collapse duration", OverlayPanelGeometry.DURATION_MS.toLong(), (field(instance, "panelAnimator") as ValueAnimator).duration)
+                invoke(instance, "applyPanelProgress", OverlayPanelGeometry.SEPARATION_MS.toFloat())
+                assertEquals(size.toFloat(), geometry.frame(OverlayPanelGeometry.SEPARATION_MS.toFloat()).bubbleWidth, 0f)
 
                 instance.update(recording, true, true, false)
                 assertEquals(3, surfaces(instance).size)
-                assertEquals(300L, (field(instance, "panelAnimator") as ValueAnimator).duration)
+                assertEquals(OverlayPanelGeometry.DURATION_MS.toLong(), (field(instance, "panelAnimator") as ValueAnimator).duration)
                 instance.hide()
                 assertTrue(surfaces(instance).isEmpty())
                 assertEquals(null, field(instance, "panelAnimator"))
@@ -104,7 +104,7 @@ class OverlayAnimationTest {
                 instance.update(idle, true, true, false)
                 instance.update(recording, true, true, false)
                 val bubble = surfaces(instance)[1]
-                invoke(instance, "applyPanelProgress", 300f)
+                invoke(instance, "applyPanelProgress", OverlayPanelGeometry.DURATION_MS.toFloat())
                 val settledWidth = intField(bubble, "width")
                 val settledX = bubble.x
                 val animation = field(instance, "panelAnimation") as OverlayPanelAnimation
@@ -112,7 +112,7 @@ class OverlayAnimationTest {
                 val animationWidth = attributes.width
                 assertTrue(attributes.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0)
                 assertTrue(attributes.alpha <= context.getSystemService(InputManager::class.java).maximumObscuringOpacityForTouch)
-                for (phase in 300 downTo 0) {
+                for (phase in OverlayPanelGeometry.DURATION_MS downTo 0) {
                     invoke(instance, "applyPanelProgress", phase.toFloat())
                     assertEquals("Animation must not asynchronously resize the glass window", settledWidth, intField(bubble, "width"))
                     assertEquals("Animation must not independently move the glass window", settledX, bubble.x)
@@ -149,7 +149,7 @@ class OverlayAnimationTest {
             instrumentation.runOnMainSync {
                 val instance = controller!!
                 (field(instance, "panelAnimator") as ValueAnimator).pause()
-                invoke(instance, "applyPanelProgress", 120f)
+                invoke(instance, "applyPanelProgress", OverlayPanelGeometry.SEPARATION_MS.toFloat())
                 val layout = field(instance, "panelLayout")!!
                 val geometry = field(layout, "geometry") as OverlayPanelGeometry
                 val animation = field(instance, "panelAnimation") as OverlayPanelAnimation

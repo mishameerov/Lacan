@@ -12,6 +12,8 @@ data class ScreenState(
     val recording: Boolean = false,
     val cancelling: Boolean = false,
     val readyToRecord: Boolean = false,
+    val modelLoading: Boolean = false,
+    val modelLoadingVisible: Boolean = false,
     val audioLevel: Float = 0f,
     val recordingStartedAtMillis: Long = 0L,
     val recordingElapsedMillis: Long = 0L,
@@ -21,6 +23,10 @@ data class ScreenState(
     val models: List<ModelCard> = emptyList(),
     val downloadingId: String? = null,
     val downloadProgress: Float = 0f,
+    val queuedDownloadIds: Set<String> = emptySet(),
+    val downloadProgressById: Map<String, Float> = emptyMap(),
+    val downloadErrors: Map<String, String> = emptyMap(),
+    val setupModelId: String? = null,
     val language: String = "ru",
     val history: List<HistoryCard> = emptyList()
 )
@@ -29,6 +35,7 @@ interface UiActions {
     fun setEnabled(value: Boolean); fun setLanguage(value: String)
     fun importModel(id: String)
     fun downloadForSetup(id: String) = download(id)
+    fun cancelDownload(id: String) = cancelDownload()
     fun download(id: String); fun cancelDownload(); fun selectModel(id: String); fun removeModel(id: String)
     fun start(); fun stop(); fun cancel(); fun copy(text: String)
     fun deleteHistory(id: String); fun clearHistory(); fun dismissResult()

@@ -3,8 +3,11 @@ package org.lacan.ui
 /** Configuration, not model warmup: a cold loaded-on-demand model can still start recording. */
 enum class SetupStep { Model, Microphone, Notifications, Overlay, Accessibility, Enable }
 
-fun ScreenState.nextSetupStep(): SetupStep? = when {
-    models.none { it.selected && it.installed } -> SetupStep.Model
+fun ScreenState.nextSetupStep(): SetupStep? = nextWizardStep(modelStepPassed = false)
+
+/** Only the wizard may continue permission setup while its chosen model downloads. */
+internal fun ScreenState.nextWizardStep(modelStepPassed: Boolean): SetupStep? = when {
+    models.none { it.selected && it.installed } && !(modelStepPassed && hasPendingSetupModel()) -> SetupStep.Model
     !microphoneGranted -> SetupStep.Microphone
     !notificationsGranted -> SetupStep.Notifications
     !overlayGranted -> SetupStep.Overlay
@@ -22,3 +25,7 @@ fun ScreenState.setupBlockReason(): String? = when (nextSetupStep()) {
     SetupStep.Enable -> "Включите диктовку Lacan в настройках"
     null -> null
 }
+
+internal fun ScreenState.hasPendingSetupModel(): Boolean = setupModelId?.let { id ->
+    id == downloadingId || id in queuedDownloadIds
+} == true

@@ -24,4 +24,23 @@ class SetupPolicyTest {
     @Test fun warmingModelDoesNotSendConfiguredUserBackToSetup() {
         assertNull(ready.copy(readyToRecord = false).setupBlockReason())
     }
+    @Test fun wizardMayContinuePendingDownloadOnlyAfterNext() {
+        val pending = ScreenState(setupModelId = "giga", downloadingId = "giga")
+        assertEquals(SetupStep.Model, pending.nextWizardStep(modelStepPassed = false))
+        assertEquals(SetupStep.Microphone, pending.nextWizardStep(modelStepPassed = true))
+        assertEquals(SetupStep.Model, pending.nextSetupStep())
+        assertNotNull(pending.setupBlockReason())
+    }
+    @Test fun queuedSetupTargetCanContinueButUnrelatedDownloadCannot() {
+        val pending = ScreenState(setupModelId = "giga", downloadingId = "other", queuedDownloadIds = setOf("giga"))
+        assertEquals(SetupStep.Microphone, pending.nextWizardStep(modelStepPassed = true))
+        assertEquals(SetupStep.Model, pending.copy(queuedDownloadIds = emptySet()).nextWizardStep(modelStepPassed = true))
+        assertEquals(SetupStep.Model, pending.copy(setupModelId = null).nextWizardStep(modelStepPassed = true))
+    }
+    @Test fun pendingModelNeverMakesDictationConfigured() {
+        val pending = ready.copy(models = emptyList(), setupModelId = "giga", downloadingId = "giga")
+        assertNull(pending.nextWizardStep(modelStepPassed = true))
+        assertEquals(SetupStep.Model, pending.nextSetupStep())
+        assertNotNull(pending.setupBlockReason())
+    }
 }

@@ -40,12 +40,17 @@ class AppRuntime(private val context: Context) {
     private var engineKey: String? = null
     private val gate = SessionGate()
     private var selected = ModelCatalog.activeSelection(prefs.getString("model", "") ?: "")
-    private val mutable = MutableStateFlow(ScreenState(enabled = prefs.getBoolean("enabled", true), language = prefs.getString("language", "ru") ?: "ru"))
+    private val mutable = MutableStateFlow(ScreenState(enabled = prefs.getBoolean("enabled", true), language = prefs.getString("language", "ru") ?: "ru", setupModelId = prefs.getString("setup_model", null)))
     val state: StateFlow<ScreenState> = mutable.asStateFlow()
     @Volatile private var current: Session? = null
     private var modelMutation = false
     private var downloadJob: Job? = null
     private var warmJob: Job? = null
+    private var warmKey: String? = null
+    private var warmGeneration = 0L
+    private var pendingStartJob: Job? = null
+    private var loadingIndicatorJob: Job? = null
+    private val downloads = ModelDownloads.get(context)
     private class Session(val token: Long, val spec: ModelSpec, val language: String, val spool: AudioSpool) {
         val id = UUID.randomUUID().toString()
         val started = System.currentTimeMillis()
@@ -75,6 +80,20 @@ class AppRuntime(private val context: Context) {
             }
         }
         refreshPermissions(); refreshModels(); warmModel()
+        scope.launch {
+            var completion = -1L
+            downloads.state.collect { transfer ->
+                mutable.update { it.copy(downloadingId = transfer.activeId,
+                    downloadProgress = transfer.activeId?.let { id -> transfer.progress[id] } ?: 0f,
+                    queuedDownloadIds = transfer.queuedIds, downloadProgressById = transfer.progress, downloadErrors = transfer.errors) }
+                if (completion != transfer.completionVersion) {
+                    completion = transfer.completionVersion
+                    refreshModels()
+                    applyDownloadedSetupModel()
+                    warmModel()
+                }
+            }
+        }
     }
     fun message(text: String) { mutable.update { it.copy(status = text) } }
     fun refreshPermissions() {
@@ -107,12 +126,27 @@ class AppRuntime(private val context: Context) {
         if (state.value.busy || modelMutation) return
         val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
         if (!repository.isInstalled(spec)) return
-        selected = id; prefs.edit().putString("model", id).apply(); refreshModels(); warmModel()
+        dismissModelPreparation()
+        selected = id
+        prefs.edit().putString("model", id).remove("setup_model").apply()
+        mutable.update { it.copy(setupModelId = null) }
+        refreshModels(); warmModel()
     }
-    fun download(id: String) {
+    fun download(id: String) { downloads.enqueue(id) }
+    fun downloadForSetup(id: String) {
+        if (ModelCatalog.activeModels.none { it.id == id }) return
+        prefs.edit().putString("setup_model", id).apply()
+        mutable.update { it.copy(setupModelId = id) }
+        downloads.enqueue(id)
+        applyDownloadedSetupModel()
+    }
+    private fun applyDownloadedSetupModel() {
+        val id = state.value.setupModelId ?: return
         val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
-        if (!spec.downloadable) { message("Для этой модели нужен импорт локального файла .mnn"); return }
-        transferModel(spec, importing = false) { progress -> repository.download(spec, progress) }
+        if (state.value.busy || modelMutation || !repository.isInstalled(spec)) return
+        prefs.edit().remove("setup_model").apply()
+        mutable.update { it.copy(setupModelId = null) }
+        selectModel(id)
     }
     fun importModel(id: String, uri: Uri) {
         val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
@@ -147,11 +181,19 @@ class AppRuntime(private val context: Context) {
                     prefs.edit().putString("model", selected).apply()
                     refreshModels()
                 }
+                applyDownloadedSetupModel()
                 warmModel()
             }
         }
     }
-    fun cancelDownload() { downloadJob?.cancel() }
+    fun cancelDownload() { state.value.downloadingId?.let(::cancelDownload) ?: downloadJob?.cancel() }
+    fun cancelDownload(id: String) {
+        downloads.cancel(id)
+        if (state.value.setupModelId == id) {
+            prefs.edit().remove("setup_model").apply()
+            mutable.update { it.copy(setupModelId = null) }
+        }
+    }
     fun removeModel(id: String) {
         if (state.value.busy || modelMutation || state.value.downloadingId == id) return
         val spec = ModelCatalog.activeModels.find { it.id == id } ?: return
@@ -165,7 +207,7 @@ class AppRuntime(private val context: Context) {
             }
             refreshModels(); message("Модель удалена")
           } catch (_: Exception) { message("Не удалось удалить модель") }
-          finally { modelMutation = false; refreshModels() }
+          finally { modelMutation = false; refreshModels(); applyDownloadedSetupModel() }
         }
     }
     private suspend fun engineFor(spec: ModelSpec, language: String): AsrEngine {
@@ -184,24 +226,79 @@ class AppRuntime(private val context: Context) {
         withContext(nativeDispatcher) { engine?.close(); engine = null; engineKey = null }
         refreshReadiness()
     }
+    fun prepareModel() = warmModel()
     private fun warmModel() {
         if (!state.value.enabled || state.value.busy || modelMutation) return
         val spec = ModelCatalog.activeModels.find { it.id == selected } ?: return
         if (!repository.isInstalled(spec)) return
-        refreshReadiness()
         val language = state.value.language
+        val key = "${spec.id}:$language"
+        refreshReadiness()
+        if (engine != null && engineKey == key) return
+        if (warmJob?.isActive == true && warmKey == key) return
         warmJob?.cancel()
+        warmKey = key
+        val generation = ++warmGeneration
+        mutable.update { it.copy(modelLoading = true, modelLoadingVisible = true) }
+        loadingIndicatorJob?.cancel()
+        loadingIndicatorJob = scope.launch {
+            delay(10_000)
+            if (generation == warmGeneration) mutable.update { it.copy(modelLoadingVisible = false) }
+        }
         warmJob = scope.launch {
             try {
                 engineMutex.withLock {
-                    if (!state.value.busy && state.value.enabled && !modelMutation) { message(if (spec.engine.endsWith("-gpu")) "Подготовка модели на GPU…" else "Загрузка модели в память…"); engineFor(spec, language); if (!state.value.busy) message("Готово к диктовке") }
+                    if (!state.value.busy && state.value.enabled && !modelMutation) {
+                        engineFor(spec, language)
+                        if (!state.value.busy) message("Готово к диктовке")
+                    }
                 }
             } catch (_: CancellationException) { }
-            catch (_: Exception) { message(if (spec.engine.endsWith("-gpu")) "Не удалось запустить модель на GPU. Выберите модель для CPU." else "Не удалось загрузить модель. Попробуйте выбрать более лёгкую.") }
+            catch (_: Exception) { message("Не удалось загрузить модель. Попробуйте выбрать её снова.") }
+            finally {
+                if (generation == warmGeneration) {
+                    mutable.update { it.copy(modelLoading = false, modelLoadingVisible = false) }
+                    loadingIndicatorJob?.cancel()
+                }
+            }
         }
     }
+    /** Wait only for the user's pending start, never cancel native model loading on timeout. */
+    fun requestDictation() {
+        refreshPermissions()
+        val reason = state.value.setupBlockReason()
+        if (reason != null) {
+            context.startActivity(Intent(context, org.lacan.MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(org.lacan.MainActivity.EXTRA_OPEN_SETTINGS, true)
+                .putExtra(org.lacan.MainActivity.EXTRA_SETUP_REASON, reason))
+            return
+        }
+        if (state.value.busy || pendingStartJob?.isActive == true) return
+        warmModel()
+        pendingStartJob = scope.launch {
+            if (!state.value.readyToRecord) {
+                loadingIndicatorJob?.cancel()
+                mutable.update { it.copy(modelLoadingVisible = true) }
+            }
+            val ready = withTimeoutOrNull(10_000) {
+                state.first { it.readyToRecord || !it.modelLoading }.readyToRecord
+            } == true
+            if (ready && !locked()) {
+                runCatching {
+                    context.startActivity(Intent(context, org.lacan.LaunchDictationActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION))
+                }.onFailure { message("Не удалось запустить диктовку. Откройте Lacan.") }
+            } else mutable.update { it.copy(modelLoadingVisible = false) }
+        }
+    }
+    fun dismissModelPreparation() {
+        pendingStartJob?.cancel()
+        pendingStartJob = null
+        mutable.update { it.copy(modelLoadingVisible = false) }
+    }
     fun releaseIdleModel() {
-        scope.launch { engineMutex.withLock { if (!state.value.busy) closeEngine() } }
+        scope.launch { engineMutex.withLock { if (!state.value.busy && pendingStartJob?.isActive != true) closeEngine() } }
     }
     fun startCapture(onFinished: () -> Unit) {
         refreshPermissions()
@@ -257,7 +354,7 @@ class AppRuntime(private val context: Context) {
         mutable.update { it.copy(recording = false, audioLevel = 0f, recordingElapsedMillis = s.stopElapsed(), status = "Завершаю распознавание…") }
     }
     fun cancel() {
-        val s = current ?: return
+        val s = current ?: run { dismissModelPreparation(); return }
         s.cancelled.set(true); gate.cancel(s.token); s.capture?.stop()
         // Native cancel only sets an atomic flag; actual close stays on serialized worker.
         engine?.cancel()
@@ -336,7 +433,7 @@ class AppRuntime(private val context: Context) {
                 try { s.spool.delete() } catch (_: Exception) { message("Не удалось удалить временный файл; он будет очищен при следующем запуске") }
                 finally {
                     gate.finish(s.token); if (current === s) current = null
-                    mutable.update { it.copy(busy = false, recording = false, cancelling = false, audioLevel = 0f, preview = "") }; onFinished()
+                    mutable.update { it.copy(busy = false, recording = false, cancelling = false, audioLevel = 0f, preview = "") }; applyDownloadedSetupModel(); onFinished()
                 }
             }
         }

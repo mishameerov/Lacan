@@ -54,7 +54,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
     private var panelAnimator: ValueAnimator? = null
     private var panelLayout: PanelLayout? = null
     private var panelAnimation: OverlayPanelAnimation? = null
-    private var panelProgress = 300f
+    private var panelProgress = OverlayPanelGeometry.DURATION_MS.toFloat()
     private var collapsingToIdle = false
     private var controlLossReported = false
     private var anchorX = if (preferences.getFloat("x", 1f) < .5f) 0f else 1f
@@ -91,6 +91,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
         }
         val mode = when {
             state.cancelling -> "idle"
+            state.modelLoadingVisible && !state.busy -> "model-loading"
             state.recording && !state.readyToRecord -> "record-preparing"
             state.recording -> "recording"
             state.busy && state.preview.isNotBlank() -> "finalizing-preview"
@@ -126,10 +127,10 @@ class OverlayController(private val context: Context) : AutoCloseable {
         val expanded = mode != "idle"
         val startX = ax
         val control = button(
-            when (mode) { "recording", "record-preparing" -> R.drawable.overlay_confirm; "preparing", "finalizing-preview" -> null; else -> R.drawable.overlay_microphone },
-            when (mode) { "recording", "record-preparing" -> "Завершить диктовку"; "preparing", "finalizing-preview" -> "Отменить диктовку"; else -> "Начать диктовку" },
+            when (mode) { "recording", "record-preparing" -> R.drawable.overlay_confirm; "preparing", "finalizing-preview", "model-loading" -> null; else -> R.drawable.overlay_microphone },
+            when (mode) { "recording", "record-preparing" -> "Завершить диктовку"; "model-loading" -> "Модель загружается"; "preparing", "finalizing-preview" -> "Отменить диктовку"; else -> "Начать диктовку" },
         ) {
-            when (mode) { "recording", "record-preparing" -> runtime.stop(); "preparing", "finalizing-preview" -> runtime.cancel(); else -> start() }
+            when (mode) { "recording", "record-preparing" -> runtime.stop(); "preparing", "finalizing-preview" -> runtime.cancel(); "model-loading" -> runtime.requestDictation(); else -> start() }
         }
         recordButton = control
         control.also { draggable(it) }
@@ -138,13 +139,13 @@ class OverlayController(private val context: Context) : AutoCloseable {
         var previewWidth = 0
         if (expanded) {
             val leftSide = ax < (width - size) / 2
-            cancelX = if (mode in listOf("preparing", "record-preparing")) {
+            cancelX = if (mode in listOf("preparing", "record-preparing", "model-loading")) {
                 if (leftSide) (ax + size + gap).coerceAtMost(width - size - gap) else (ax - size - gap).coerceAtLeast(gap)
             } else if (leftSide) width - size - gap else gap
             cancelSurface = addSurface(button(R.drawable.overlay_close, if (mode == "result") "Закрыть результат" else "Отменить диктовку") {
-                if (mode == "result") runtime.dismissResult() else runtime.cancel()
+                if (mode == "result") runtime.dismissResult() else if (mode == "model-loading") runtime.dismissModelPreparation() else runtime.cancel()
             }, size, cancelX, ay, RED)
-            if (mode !in listOf("preparing", "record-preparing")) {
+            if (mode !in listOf("preparing", "record-preparing", "model-loading")) {
                 previewStart = (if (leftSide) ax + size else cancelX + size) + gap
                 val previewEnd = (if (leftSide) cancelX else ax) - gap
                 previewWidth = (previewEnd - previewStart).coerceAtLeast(0)
@@ -161,8 +162,8 @@ class OverlayController(private val context: Context) : AutoCloseable {
         try {
             surfaces.forEach { it.show() }
             if (bubbleSurface != null && panelLayout != null &&
-                (previousMode == "idle" || resumeAt != null || previousMode in listOf("preparing", "record-preparing"))) {
-                animatePanel(resumeAt ?: 0f, 300f)
+                (previousMode == "idle" || resumeAt != null || previousMode in listOf("preparing", "record-preparing", "model-loading"))) {
+                animatePanel(resumeAt ?: 0f, OverlayPanelGeometry.DURATION_MS.toFloat())
             }
             if (state.recording) handler.post(timerTick)
         } catch (_: RuntimeException) {
@@ -293,17 +294,17 @@ class OverlayController(private val context: Context) : AutoCloseable {
         panelAnimator = animator
         applyPanelProgress(from)
         // Starting before attachment can consume the separation phase while Android
-        // creates the surface. Start the 300 ms clock at its first drawable frame.
+        // creates the surface. Start the animation clock at its first drawable frame.
         animation.afterFirstLayout { if (panelAnimator === animator) animator.start() }
     }
 
     private fun applyPanelProgress(milliseconds: Float) {
-        panelProgress = milliseconds.coerceIn(0f, 300f)
+        panelProgress = milliseconds.coerceIn(0f, OverlayPanelGeometry.DURATION_MS.toFloat())
         panelAnimation?.drawFrame(panelProgress)
     }
 
     private fun collapseToIdle() {
-        val current = if (panelAnimator != null) panelProgress else 300f
+        val current = if (panelAnimator != null) panelProgress else OverlayPanelGeometry.DURATION_MS.toFloat()
         cancelPanelAnimator()
         collapsingToIdle = true
         animatePanel(current, 0f)
@@ -349,9 +350,8 @@ class OverlayController(private val context: Context) : AutoCloseable {
         }
 
     private fun start() {
-        runCatching {
-            context.startActivity(Intent(context, LaunchDictationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }.onFailure { runtime.message("Откройте Lacan, чтобы начать диктовку") }
+        runCatching { runtime.requestDictation() }
+            .onFailure { runtime.message("Откройте Lacan, чтобы начать диктовку") }
     }
 
     private fun draggable(view: View) {
@@ -366,7 +366,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     if (panelAnimator != null && !collapsingToIdle) {
-                        applyPanelProgress(300f)
+                        applyPanelProgress(OverlayPanelGeometry.DURATION_MS.toFloat())
                         cancelPanelAnimator()
                     }
                     downX = event.rawX; downY = event.rawY
