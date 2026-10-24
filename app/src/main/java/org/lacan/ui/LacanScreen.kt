@@ -1,5 +1,10 @@
 package org.lacan.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -249,11 +254,38 @@ private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: 
         ContentCard(title = "Настройка Lacan", supporting = state.setupBlockReason() ?: "Всё готово для диктовки в других приложениях.") {
             OutlinedButton(onClick = onSetup, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Открыть мастер настройки") }
         }
-        ContentCard(title = "Оформление", supporting = "Системная тема следует настройкам Android.") {
+        ContentCard(title = "Оформление") {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Appearance.entries.forEach { item ->
                     androidx.compose.material3.FilterChip(selected = appearance == item, onClick = { onAppearance(item) }, label = { Text(item.title) }, modifier = Modifier.height(48.dp))
                 }
+            }
+        }
+        ContentCard(title = "Цвет кнопки диктовки") {
+            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.SpaceBetween) {
+                DictationButtonColor.entries.forEach { color ->
+                    val selected = state.buttonColor == color
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.weight(1f).height(48.dp)
+                            .selectable(selected = selected, role = Role.RadioButton,
+                                onClick = { actions.setButtonColor(color) })
+                            .semantics { contentDescription = color.title },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            Modifier.size(36.dp)
+                                .border(if (selected) 2.dp else 0.dp,
+                                    if (selected) Ink else Color.Transparent, CircleShape)
+                                .padding(4.dp).clip(CircleShape).background(Color(color.argb))
+                        )
+                    }
+                }
+            }
+        }
+        ContentCard(title = "Убирать звуки заминки", supporting = "Удаляет «э-э-э», «ааа», «м-м-м» из итогового текста. Обычные слова сохраняются. Применяется к следующей диктовке.") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Убирать звуки заминки", modifier = Modifier.weight(1f), color = Ink)
+                Switch(checked = state.removeHesitations, onCheckedChange = actions::setRemoveHesitations)
             }
         }
         ContentCard(title = "Работа Lacan", supporting = "Когда приложение выключено, панель диктовки недоступна.") {

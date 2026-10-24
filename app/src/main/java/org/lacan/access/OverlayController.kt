@@ -48,23 +48,32 @@ class OverlayController(private val context: Context) : AutoCloseable {
     private var previewScroll: HorizontalScrollView? = null
     private var waveformView: OverlayWaveformView? = null
     private var timerView: TextView? = null
+    private var copyIcon: View? = null
+    private var previewContainer: FrameLayout? = null
+    private var trailingContainer: View? = null
     private var recordButton: View? = null
+    private var recordIcon: OverlayRecordIcon? = null
+    private var mainSurface: OverlayGlassWindow? = null
+    private var closeButton: View? = null
+    private var rotateCancelOnClose = false
+    private var closingStartProgress = OverlayPanelGeometry.DURATION_MS.toFloat()
     private var cancelSurface: OverlayGlassWindow? = null
     private var bubbleSurface: OverlayGlassWindow? = null
     private var panelAnimator: ValueAnimator? = null
     private var panelLayout: PanelLayout? = null
-    private var panelAnimation: OverlayPanelAnimation? = null
     private var panelProgress = OverlayPanelGeometry.DURATION_MS.toFloat()
+    private var interruptedOpeningProgress: Float? = null
     private var collapsingToIdle = false
     private var controlLossReported = false
     private var anchorX = if (preferences.getFloat("x", 1f) < .5f) 0f else 1f
     private var anchorY = preferences.getFloat("y", .5f).coerceIn(0f, 1f)
-    private val size get() = dp(38.5f)
-    private val gap get() = dp(10)
+    private val size get() = dp(42.35f)
+    private val gap get() = dp(9)
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density).roundToInt()
     private fun dp(value: Float) = (value * context.resources.displayMetrics.density).roundToInt()
     private val timerTick = object : Runnable {
         override fun run() {
+            if (panelAnimator != null || collapsingToIdle) return
             val state = lastState ?: return
             updateTimer(state)
             if (state.recording && surfaces.isNotEmpty()) {
@@ -75,6 +84,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
     }
 
     fun update(state: ScreenState, targetEligible: Boolean, keyboardVisible: Boolean, locked: Boolean) {
+        val colorChanged = lastState?.buttonColor != state.buttonColor
         lastState = state
         val permission = Settings.canDrawOverlays(context)
         if (!permission && state.recording &&
@@ -94,7 +104,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
             state.modelLoadingVisible && !state.busy -> "model-loading"
             state.recording && !state.readyToRecord -> "record-preparing"
             state.recording -> "recording"
-            state.busy && state.preview.isNotBlank() -> "finalizing-preview"
+            state.busy && (state.preview.isNotBlank() || lastMode in listOf("recording", "finalizing-preview")) -> "finalizing-preview"
             state.busy -> "preparing"
             state.result.isNotBlank() -> "result"
             else -> "idle"
@@ -104,20 +114,28 @@ class OverlayController(private val context: Context) : AutoCloseable {
             return
         }
         if (collapsingToIdle && mode != "idle") {
+            interruptedOpeningProgress = OverlayPanelGeometry.openingTime(panelProgress)
+            abortPanelAnimator()
             collapsingToIdle = false
-            cancelPanelAnimator()
             lastMode = "idle"
         } else if (collapsingToIdle) return
-        if (mode != lastMode || surfaces.isEmpty() || availableArea() != lastArea) show(mode, state)
+        val samePanel = mode in listOf("recording", "finalizing-preview", "result") &&
+            lastMode in listOf("recording", "finalizing-preview", "result") && bubbleSurface != null
+        if (samePanel && !colorChanged && availableArea() == lastArea) {
+            lastMode = mode
+            updateMainControl(mode)
+        } else if (colorChanged || mode != lastMode || surfaces.isEmpty() || availableArea() != lastArea) show(mode, state)
         updateContent(mode, state)
     }
 
     private fun show(mode: String, state: ScreenState) {
-        val resumeAt = if (panelAnimator != null && !collapsingToIdle) panelProgress else null
-        clearSurfaces()
-        cancelPanelAnimator()
+        val resumeAt = interruptedOpeningProgress
+            ?: if (panelAnimator != null && !collapsingToIdle) panelProgress else null
+        interruptedOpeningProgress = null
+        abortPanelAnimator()
+        handler.removeCallbacks(timerTick)
         collapsingToIdle = false
-        cancelSurface = null; bubbleSurface = null; panelLayout = null
+        panelLayout = null
         val previousMode = lastMode
         lastMode = mode
         val (width, height) = availableArea()
@@ -126,46 +144,76 @@ class OverlayController(private val context: Context) : AutoCloseable {
         val ay = (anchorY * (height - size).coerceAtLeast(0)).roundToInt()
         val expanded = mode != "idle"
         val startX = ax
-        val control = button(
-            when (mode) { "recording", "record-preparing" -> R.drawable.overlay_confirm; "preparing", "finalizing-preview", "model-loading" -> null; else -> R.drawable.overlay_microphone },
-            when (mode) { "recording", "record-preparing" -> "Завершить диктовку"; "model-loading" -> "Модель загружается"; "preparing", "finalizing-preview" -> "Отменить диктовку"; else -> "Начать диктовку" },
-        ) {
-            when (mode) { "recording", "record-preparing" -> runtime.stop(); "preparing", "finalizing-preview" -> runtime.cancel(); "model-loading" -> runtime.requestDictation(); else -> start() }
-        }
-        recordButton = control
-        control.also { draggable(it) }
-        var cancelX = ax
-        var previewStart = ax
-        var previewWidth = 0
-        if (expanded) {
-            val leftSide = ax < (width - size) / 2
-            cancelX = if (mode in listOf("preparing", "record-preparing", "model-loading")) {
-                if (leftSide) (ax + size + gap).coerceAtMost(width - size - gap) else (ax - size - gap).coerceAtLeast(gap)
-            } else if (leftSide) width - size - gap else gap
-            cancelSurface = addSurface(button(R.drawable.overlay_close, if (mode == "result") "Закрыть результат" else "Отменить диктовку") {
-                if (mode == "result") runtime.dismissResult() else if (mode == "model-loading") runtime.dismissModelPreparation() else runtime.cancel()
-            }, size, cancelX, ay, RED)
-            if (mode !in listOf("preparing", "record-preparing", "model-loading")) {
-                previewStart = (if (leftSide) ax + size else cancelX + size) + gap
-                val previewEnd = (if (leftSide) cancelX else ax) - gap
-                previewWidth = (previewEnd - previewStart).coerceAtLeast(0)
-                if (previewWidth > 0) bubbleSurface = addPreview(previewWidth, previewStart, ay, mode == "result")
+        val control = recordButton ?: FrameLayout(context).apply {
+            isFocusable = false
+            recordIcon = OverlayRecordIcon(context)
+            addView(recordIcon, FrameLayout.LayoutParams(dp(18.48f), dp(18.48f), Gravity.CENTER))
+            setOnClickListener {
+                when (lastMode) {
+                    "recording", "record-preparing" -> runtime.stop()
+                    "preparing", "finalizing-preview" -> runtime.cancel()
+                    "model-loading" -> runtime.requestDictation()
+                    else -> start()
+                }
             }
+            draggable(this)
+        }.also { recordButton = it }
+        updateMainControl(mode)
+        val leftSide = ax < (width - size) / 2
+        val hasBubble = expanded && mode !in listOf("preparing", "record-preparing", "model-loading")
+        val edgeCancelX = if (leftSide) width - size - gap else gap
+        val cancelX = if (hasBubble) edgeCancelX else {
+            if (leftSide) (ax + size + gap).coerceAtMost(width - size - gap)
+            else (ax - size - gap).coerceAtLeast(gap)
         }
-        if (expanded && cancelSurface != null) {
+        val previewStart = (if (leftSide) ax + size else edgeCancelX + size) + gap
+        val previewEnd = (if (leftSide) edgeCancelX else ax) - gap
+        val previewWidth = (previewEnd - previewStart).coerceAtLeast(1)
+        // Attach once, back to front. Main stays above the pill with transparent round corners.
+        if (cancelSurface == null) {
+            closeButton = button(R.drawable.overlay_close, "Отменить диктовку") {
+                if (collapsingToIdle) return@button
+                rotateCancelOnClose = true
+                if (lastMode == "result") runtime.dismissResult()
+                else if (lastMode == "model-loading") runtime.dismissModelPreparation()
+                else runtime.cancel()
+            }
+            cancelSurface = addSurface(checkNotNull(closeButton), size, cancelX, ay, RED)
+        }
+        if (bubbleSurface == null) bubbleSurface = addPreview(previewWidth, previewStart, ay, mode == "result")
+        resizePreviewContent(previewWidth)
+        bubbleSurface?.setRightAnchor(if (leftSide) null else width)
+        if (resumeAt == null) {
+            cancelSurface?.setGeometry(cancelX, ay, size)
+            bubbleSurface?.setGeometry(previewStart, ay, previewWidth)
+        }
+        if (expanded) {
             panelLayout = PanelLayout(OverlayPanelGeometry(ax, cancelX,
-                bubbleX = previewStart, bubbleWidth = previewWidth, size = size, gap = gap), ay)
+                bubbleX = previewStart, bubbleWidth = if (hasBubble) previewWidth else 0,
+                size = size, gap = gap), ay)
         }
-        // Keep the main control above the cancel button and bubble.
-        addSurface(control, size, startX, ay, BLUE)
+        if (mainSurface == null) mainSurface = addSurface(control, size, startX, ay, state.buttonColor.argb)
+        mainSurface?.let { it.setGeometry(startX, ay, size); it.setTint(state.buttonColor.argb) }
+        val shouldAnimate = hasBubble && (previousMode == "idle" || resumeAt != null ||
+            previousMode in listOf("preparing", "record-preparing", "model-loading"))
+        if (!shouldAnimate) {
+            bubbleSurface?.endMotion()
+            cancelSurface?.setVisible(expanded)
+            bubbleSurface?.setVisible(hasBubble)
+            bubbleSurface?.setContentEnabled(hasBubble)
+            closeButton?.rotation = 0f
+        } else {
+            if (resumeAt == null) {
+                cancelSurface?.setVisible(false)
+                bubbleSurface?.setVisible(false)
+            }
+            bubbleSurface?.setContentEnabled(false)
+        }
         updateContent(mode, state)
         try {
             surfaces.forEach { it.show() }
-            if (bubbleSurface != null && panelLayout != null &&
-                (previousMode == "idle" || resumeAt != null || previousMode in listOf("preparing", "record-preparing", "model-loading"))) {
-                animatePanel(resumeAt ?: 0f, OverlayPanelGeometry.DURATION_MS.toFloat())
-            }
-            if (state.recording) handler.post(timerTick)
+            if (shouldAnimate) animatePanel(resumeAt ?: 0f, OverlayPanelGeometry.DURATION_MS.toFloat())
+            if (state.recording && panelAnimator == null) handler.post(timerTick)
         } catch (_: RuntimeException) {
             hide()
             if (state.recording && !state.notificationsGranted && !controlLossReported) {
@@ -175,16 +223,38 @@ class OverlayController(private val context: Context) : AutoCloseable {
         }
     }
 
+    private fun updateMainControl(mode: String) {
+        closeButton?.contentDescription = if (mode == "result") "Закрыть результат" else "Отменить диктовку"
+        recordButton?.alpha = if (mode in listOf("idle", "result") && lastState?.readyToRecord != true) .65f else 1f
+        recordButton?.contentDescription = when (mode) {
+            "recording", "record-preparing" -> "Завершить диктовку"
+            "model-loading" -> "Модель загружается"
+            "preparing", "finalizing-preview" -> "Отменить диктовку"
+            else -> "Начать диктовку"
+        }
+        recordIcon?.setSymbol(when (mode) {
+            "recording", "record-preparing" -> OverlayRecordIcon.Symbol.CONFIRM
+            "preparing", "finalizing-preview", "model-loading" -> OverlayRecordIcon.Symbol.LOADING
+            else -> OverlayRecordIcon.Symbol.MICROPHONE
+        }, motionDurationMillis())
+    }
+
     private fun updateContent(mode: String, state: ScreenState) {
         if (mode == "idle" || mode == "result") {
             recordButton?.alpha = if (state.readyToRecord) 1f else .65f
             recordButton?.contentDescription = if (state.readyToRecord) "Начать диктовку" else "Подготовить диктовку и проверить разрешения"
         }
+        // Animated glass is empty. Do not mutate/layout/invalidate its hidden content.
+        if (panelAnimator != null || collapsingToIdle) return
+        timerView?.visibility = if (mode == "result") View.GONE else View.VISIBLE
+        copyIcon?.visibility = if (mode == "result") View.VISIBLE else View.GONE
         val preview = if (mode == "result") state.result else state.preview
         if (preview != lastPreview) {
             lastPreview = preview
             previewView?.text = preview
-            previewScroll?.post { previewScroll?.fullScroll(View.FOCUS_RIGHT) }
+            previewScroll?.post {
+                if (panelAnimator == null && !collapsingToIdle) previewScroll?.fullScroll(View.FOCUS_RIGHT)
+            }
         }
         val hasText = preview.isNotBlank()
         previewScroll?.visibility = if (hasText) View.VISIBLE else View.INVISIBLE
@@ -195,13 +265,13 @@ class OverlayController(private val context: Context) : AutoCloseable {
 
     private fun addPreview(width: Int, x: Int, y: Int, result: Boolean): OverlayGlassWindow {
         val pill = FrameLayout(context).apply {
-            if (result) {
+            run {
                 contentDescription = "Скопировать результат"
                 isClickable = true
-                setOnClickListener { runtime.copy(runtime.state.value.result) }
+                setOnClickListener { if (lastMode == "result") runtime.copy(runtime.state.value.result) }
             }
         }
-        val timerWidth = if (result) dp(34) else dp(57)
+        val timerWidth = dp(57)
         val contentWidth = (width - timerWidth).coerceAtLeast(0)
         val text = TextView(context).apply {
             setTextColor(Color.WHITE)
@@ -209,10 +279,8 @@ class OverlayController(private val context: Context) : AutoCloseable {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, dp(8), 0)
             setSingleLine(true)
-            if (result) {
-                contentDescription = "Скопировать результат"
-                setOnClickListener { runtime.copy(runtime.state.value.result) }
-            }
+            contentDescription = "Текст диктовки"
+            setOnClickListener { if (lastMode == "result") runtime.copy(runtime.state.value.result) }
         }
         // Keep the leading inset outside the scrollable text so it survives auto-scroll.
         val leadingInset = dp(16).coerceAtMost(contentWidth)
@@ -229,24 +297,23 @@ class OverlayController(private val context: Context) : AutoCloseable {
         previewScroll = scroll
         pill.addView(scroll, box(contentWidth - leadingInset, size, leadingInset))
         waveformView = OverlayWaveformView(context).also { pill.addView(it, box(contentWidth, size)) }
-        val trailingView = if (result) {
-            icon(R.drawable.overlay_copy).apply {
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                contentDescription = "Скопировать результат"
-                setOnClickListener { runtime.copy(runtime.state.value.result) }
-            }
-        } else {
-            TextView(context).apply {
-                setTextColor(Color.argb(235, 236, 243, 255))
-                textSize = 12f
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                gravity = Gravity.CENTER
-                timerView = this
-            }
-        }
+        val trailingView = FrameLayout(context)
+        timerView = TextView(context).apply {
+            setTextColor(Color.argb(235, 236, 243, 255))
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+        }.also { trailingView.addView(it, FrameLayout.LayoutParams(-1, -1)) }
+        copyIcon = icon(R.drawable.overlay_copy).apply {
+            visibility = if (result) View.VISIBLE else View.GONE
+            contentDescription = "Скопировать результат"
+            setOnClickListener { if (lastMode == "result") runtime.copy(runtime.state.value.result) }
+        }.also { trailingView.addView(it, FrameLayout.LayoutParams(dp(18.48f), dp(18.48f), Gravity.CENTER)) }
         pill.addView(trailingView, box(timerWidth.coerceAtMost(width), size, contentWidth))
-        val surface = addSurface(pill, width, x, y, PILL)
-        if (result) draggable(pill)
+        previewContainer = pill
+        trailingContainer = trailingView
+        val surface = OverlayGlassWindow(context, pill, width, size, x, y, PILL, canvasMotion = true).also(surfaces::add)
+        draggable(pill)
         return surface
     }
 
@@ -267,16 +334,12 @@ class OverlayController(private val context: Context) : AutoCloseable {
 
     private fun animatePanel(from: Float, to: Float) {
         val layout = panelLayout ?: return
-        val cancel = cancelSurface ?: return
-        val animation = OverlayPanelAnimation(context, lastArea.first, layout.y, layout.geometry,
-            cancel.snapshotContent(), bubbleSurface?.snapshotContent(), RED, PILL)
-        panelAnimation = animation
-        cancel.setVisible(false)
-        bubbleSurface?.setVisible(false)
-        animation.show()
+        handler.removeCallbacks(timerTick)
+        bubbleSurface?.setContentEnabled(false)
         lateinit var animator: ValueAnimator
         animator = ValueAnimator.ofFloat(from, to).apply {
-            duration = kotlin.math.abs(to - from).toLong().coerceAtLeast(1L)
+            duration = (kotlin.math.abs(to - from) * motionDurationMillis() /
+                OverlayPanelGeometry.DURATION_MS).toLong().coerceAtLeast(1L)
             interpolator = LinearInterpolator()
             addUpdateListener { applyPanelProgress(it.animatedValue as Float) }
             addListener(object : AnimatorListenerAdapter() {
@@ -286,41 +349,80 @@ class OverlayController(private val context: Context) : AutoCloseable {
                     finishPanelAnimation(revealSettled = !collapsingToIdle)
                     if (collapsingToIdle) {
                         collapsingToIdle = false
+                        rotateCancelOnClose = false
                         lastState?.let { show("idle", it) }
                     }
                 }
             })
         }
         panelAnimator = animator
+        val g = layout.geometry
+        bubbleSurface?.beginMotion(minOf(g.mainX, g.cancelX, g.bubbleX),
+            maxOf(g.mainX + g.size, g.cancelX + g.size, g.bubbleX + g.bubbleWidth))
         applyPanelProgress(from)
         // Starting before attachment can consume the separation phase while Android
         // creates the surface. Start the animation clock at its first drawable frame.
-        animation.afterFirstLayout { if (panelAnimator === animator) animator.start() }
+        bubbleSurface?.whenMotionReady { if (panelAnimator === animator) animator.start() }
     }
 
     private fun applyPanelProgress(milliseconds: Float) {
         panelProgress = milliseconds.coerceIn(0f, OverlayPanelGeometry.DURATION_MS.toFloat())
-        panelAnimation?.drawFrame(panelProgress)
+        val layout = panelLayout ?: return
+        val frame = layout.geometry.frame(panelProgress, collapsingToIdle)
+        cancelSurface?.setGeometry(frame.cancelX.roundToInt(), layout.y, size)
+        val cancelOpacity = if (layout.geometry.bubbleWidth == 0) 1f else
+            ((panelProgress - OverlayPanelGeometry.EXTENSION_MS) / OverlayPanelGeometry.EDGE_PAUSE_MS).coerceIn(0f, 1f)
+        cancelSurface?.setOpacity(cancelOpacity)
+        closeButton?.rotation = if (collapsingToIdle && rotateCancelOnClose)
+            ((closingStartProgress - panelProgress) / closingStartProgress.coerceAtLeast(1f)).coerceIn(0f, 1f) * 90f else 0f
+        val left = frame.bubbleX.roundToInt()
+        val right = (frame.bubbleX + frame.bubbleWidth).roundToInt()
+        bubbleSurface?.setGeometry(left, layout.y, right - left)
+        bubbleSurface?.setOpacity(if (frame.bubbleWidth > 0f) (panelProgress / 15f).coerceIn(0f, 1f) else 0f)
     }
 
     private fun collapseToIdle() {
-        val current = if (panelAnimator != null) panelProgress else OverlayPanelGeometry.DURATION_MS.toFloat()
-        cancelPanelAnimator()
+        val current = if (panelAnimator != null) OverlayPanelGeometry.closingTime(panelProgress)
+            else OverlayPanelGeometry.DURATION_MS.toFloat()
+        abortPanelAnimator()
+        closingStartProgress = current
         collapsingToIdle = true
+        recordIcon?.setSymbol(OverlayRecordIcon.Symbol.MICROPHONE, motionDurationMillis())
         animatePanel(current, 0f)
     }
 
     private fun finishPanelAnimation(revealSettled: Boolean) {
-        if (revealSettled) {
+        bubbleSurface?.endMotion()
+        if (revealSettled && !collapsingToIdle) {
+            lastState?.let { state ->
+                updateContent(lastMode, state)
+                handler.removeCallbacks(timerTick)
+                if (state.recording && timerView != null) handler.post(timerTick)
+            }
             cancelSurface?.setVisible(true)
             bubbleSurface?.setVisible(true)
         }
-        panelAnimation?.close()
-        panelAnimation = null
+        if (revealSettled && !collapsingToIdle) {
+            panelLayout?.let {
+                cancelSurface?.setGeometry(it.geometry.cancelX, it.y, size)
+                bubbleSurface?.setGeometry(it.geometry.bubbleX, it.y, it.geometry.bubbleWidth)
+                bubbleSurface?.setVisible(it.geometry.bubbleWidth > 0)
+            }
+            bubbleSurface?.setContentEnabled(true)
+        }
+    }
+
+    private fun motionDurationMillis() = OverlayPanelGeometry.DURATION_MS.toLong()
+
+    private fun abortPanelAnimator() {
+        val old = panelAnimator
+        panelAnimator = null
+        old?.cancel()
     }
 
     private fun cancelPanelAnimator() {
         val old = panelAnimator
+        if (old == null) return
         panelAnimator = null
         old?.cancel()
         finishPanelAnimation(revealSettled = true)
@@ -345,7 +447,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }
             } else icon(resource)
-            addView(symbol, FrameLayout.LayoutParams(dp(16.8f), dp(16.8f), Gravity.CENTER))
+            addView(symbol, FrameLayout.LayoutParams(dp(18.48f), dp(18.48f), Gravity.CENTER))
             setOnClickListener { action() }
         }
 
@@ -414,18 +516,33 @@ class OverlayController(private val context: Context) : AutoCloseable {
     }
 
     fun hide() {
+        interruptedOpeningProgress = null
         collapsingToIdle = false
-        cancelPanelAnimator()
+        abortPanelAnimator()
         panelLayout = null
         cancelSurface = null; bubbleSurface = null
         clearSurfaces()
+    }
+
+    private var lastBubbleWidth = 0
+    private fun resizePreviewContent(width: Int) {
+        if (lastBubbleWidth == width) return
+        lastBubbleWidth = width
+        val timerWidth = dp(57).coerceAtMost(width)
+        val contentWidth = (width - timerWidth).coerceAtLeast(0)
+        val inset = dp(16).coerceAtMost(contentWidth)
+        previewScroll?.layoutParams = box(contentWidth - inset, size, inset)
+        waveformView?.layoutParams = box(contentWidth, size)
+        trailingContainer?.layoutParams = box(timerWidth, size, contentWidth)
     }
 
     private fun clearSurfaces() {
         handler.removeCallbacks(timerTick)
         surfaces.forEach { runCatching { it.close() } }
         surfaces.clear()
-        previewView = null; previewScroll = null; waveformView = null; timerView = null; recordButton = null; lastPreview = ""
+        mainSurface = null; recordIcon = null; closeButton = null
+        previewContainer = null; trailingContainer = null; lastBubbleWidth = 0
+        previewView = null; previewScroll = null; waveformView = null; timerView = null; copyIcon = null; recordButton = null; lastPreview = ""
     }
     override fun close() { hide() }
     private fun box(width: Int, height: Int, x: Int = 0, y: Int = 0) = FrameLayout.LayoutParams(width, height).apply { leftMargin = x; topMargin = y }
@@ -434,7 +551,6 @@ class OverlayController(private val context: Context) : AutoCloseable {
     }
 
     private companion object {
-        val BLUE = Color.rgb(53, 111, 218)
         val RED = Color.rgb(146, 62, 77)
         val PILL = Color.rgb(28, 40, 56)
     }

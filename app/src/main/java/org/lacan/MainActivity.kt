@@ -125,6 +125,8 @@ class MainActivity : ComponentActivity() {
         override fun overlay() { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
         override fun accessibility() { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         override fun setEnabled(value: Boolean) = runtime.setEnabled(value)
+        override fun setRemoveHesitations(value: Boolean) = runtime.setRemoveHesitations(value)
+        override fun setButtonColor(value: org.lacan.ui.DictationButtonColor) = runtime.setButtonColor(value)
         override fun setLanguage(value: String) = runtime.setLanguage(value)
         override fun importModel(id: String) {
             if (runtime.state.value.busy || runtime.state.value.downloadingId != null) return

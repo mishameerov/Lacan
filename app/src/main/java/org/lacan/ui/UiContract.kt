@@ -8,6 +8,8 @@ data class ScreenState(
     val overlayGranted: Boolean = false,
     val accessibilityEnabled: Boolean = false,
     val enabled: Boolean = true,
+    val removeHesitations: Boolean = true,
+    val buttonColor: DictationButtonColor = DictationButtonColor.Orange,
     val busy: Boolean = false,
     val recording: Boolean = false,
     val cancelling: Boolean = false,
@@ -33,6 +35,8 @@ data class ScreenState(
 interface UiActions {
     fun microphone(); fun notifications(); fun overlay(); fun accessibility()
     fun setEnabled(value: Boolean); fun setLanguage(value: String)
+    fun setRemoveHesitations(value: Boolean) {}
+    fun setButtonColor(value: DictationButtonColor) {}
     fun importModel(id: String)
     fun downloadForSetup(id: String) = download(id)
     fun cancelDownload(id: String) = cancelDownload()

@@ -40,7 +40,7 @@ class AppRuntime(private val context: Context) {
     private var engineKey: String? = null
     private val gate = SessionGate()
     private var selected = ModelCatalog.activeSelection(prefs.getString("model", "") ?: "")
-    private val mutable = MutableStateFlow(ScreenState(enabled = prefs.getBoolean("enabled", true), language = prefs.getString("language", "ru") ?: "ru", setupModelId = prefs.getString("setup_model", null)))
+    private val mutable = MutableStateFlow(ScreenState(removeHesitations = prefs.getBoolean("remove_hesitations", true), buttonColor = DictationButtonColor.fromPreference(prefs.getString("button_color", null)), enabled = prefs.getBoolean("enabled", true), language = prefs.getString("language", "ru") ?: "ru", setupModelId = prefs.getString("setup_model", null)))
     val state: StateFlow<ScreenState> = mutable.asStateFlow()
     @Volatile private var current: Session? = null
     private var modelMutation = false
@@ -51,7 +51,7 @@ class AppRuntime(private val context: Context) {
     private var pendingStartJob: Job? = null
     private var loadingIndicatorJob: Job? = null
     private val downloads = ModelDownloads.get(context)
-    private class Session(val token: Long, val spec: ModelSpec, val language: String, val spool: AudioSpool) {
+    private class Session(val token: Long, val spec: ModelSpec, val language: String, val spool: AudioSpool, val removeHesitations: Boolean) {
         val id = UUID.randomUUID().toString()
         val started = System.currentTimeMillis()
         val monotonicStarted = SystemClock.elapsedRealtime()
@@ -117,6 +117,14 @@ class AppRuntime(private val context: Context) {
         prefs.edit().putBoolean("enabled", value).apply(); mutable.update { it.copy(enabled = value) }
         refreshReadiness()
         if (value) warmModel() else releaseIdleModel()
+    }
+    fun setRemoveHesitations(value: Boolean) {
+        prefs.edit().putBoolean("remove_hesitations", value).apply()
+        mutable.update { it.copy(removeHesitations = value) }
+    }
+    fun setButtonColor(value: DictationButtonColor) {
+        prefs.edit().putString("button_color", value.name).apply()
+        mutable.update { it.copy(buttonColor = value) }
     }
     fun setLanguage(value: String) {
         if (state.value.busy || modelMutation || value !in listOf("ru", "en", "auto")) return
@@ -309,7 +317,7 @@ class AppRuntime(private val context: Context) {
         if (locked()) { message("Разблокируйте экран для диктовки"); onFinished(); return }
         if (!state.value.notificationsGranted) { message("Для фоновой диктовки разрешите уведомления Lacan: в них доступны Стоп и Отмена"); onFinished(); return }
         val token = gate.start() ?: return
-        val s = try { Session(token, spec, state.value.language, AudioSpool(File(context.cacheDir, "audio/${UUID.randomUUID()}.pcm"))) }
+        val s = try { Session(token, spec, state.value.language, AudioSpool(File(context.cacheDir, "audio/${UUID.randomUUID()}.pcm")), state.value.removeHesitations) }
         catch (_: Exception) { gate.finish(token); message("Нет места для временной записи"); onFinished(); return }
         current = s
         mutable.update { it.copy(busy = true, recording = false, cancelling = false, preview = "", result = "", audioLevel = 0f,
@@ -401,33 +409,37 @@ class AppRuntime(private val context: Context) {
             message("Распознавание прервано. Доступный текст сохранён в истории.")
         } finally {
             s.capture?.stop(); s.captureEnded.await()
+            val finalText = if (s.removeHesitations) HesitationFilter.clean(assembler.text) else assembler.text
             try {
                 if (s.cancelled.get()) {
                     withContext(Dispatchers.IO) { history.discardDraft(s.id) }
                     message("Диктовка отменена")
-                } else if (assembler.text.isNotBlank()) {
-                    withContext(Dispatchers.IO) { history.save(entry(assembler.text)) }
+                } else if (finalText.isNotBlank()) {
+                    withContext(Dispatchers.IO) { history.save(entry(finalText)) }
                     if (s.cancelled.get()) {
                         withContext(Dispatchers.IO) { history.delete(s.id); history.discardDraft(s.id) }
                         message("Диктовка отменена")
                         return
                     }
                     val delivery = if (gate.accepts(s.token) && s.reason in listOf("user", "limit") && !locked())
-                        LacanAccessibilityService.instance?.deliver(assembler.text) ?: "manual" else "manual"
+                        LacanAccessibilityService.instance?.deliver(finalText) ?: "manual" else "manual"
                     withContext(Dispatchers.IO) { history.updateDelivery(s.id, delivery) }
                     if (s.cancelled.get()) {
                         withContext(Dispatchers.IO) { history.delete(s.id); history.discardDraft(s.id) }
                         message("Диктовка отменена")
                         return
                     }
-                    mutable.update { it.copy(result = if (delivery == "inserted" || locked()) "" else assembler.text,
+                    mutable.update { it.copy(result = if (delivery == "inserted" || locked()) "" else finalText,
                         status = if (delivery == "inserted") "Текст вставлен" else if (locked()) "Текст сохранён в истории" else if (delivery == "uncertain") "Вставка не подтверждена — проверьте поле перед копированием" else "Текст сохранён · можно скопировать") }
-                } else if (!failed) message("Речь не распознана")
+                } else {
+                    withContext(Dispatchers.IO) { history.discardDraft(s.id) }
+                    if (!failed) message("Речь не распознана")
+                }
             } catch (_: Exception) {
                 if (s.cancelled.get()) {
                     withContext(Dispatchers.IO) { runCatching { history.delete(s.id); history.discardDraft(s.id) } }
                     message("Диктовка отменена")
-                } else { message("Ошибка сохранения. Текст можно скопировать."); mutable.update { it.copy(result = if (locked()) "" else assembler.text) } }
+                } else { message("Ошибка сохранения. Текст можно скопировать."); mutable.update { it.copy(result = if (locked()) "" else finalText) } }
             }
             finally {
                 try { s.spool.delete() } catch (_: Exception) { message("Не удалось удалить временный файл; он будет очищен при следующем запуске") }

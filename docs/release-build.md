@@ -38,4 +38,4 @@ keyPassword=YOUR_PRIVATE_PASSWORD
 Перед публикацией проверяйте подпись APK через `apksigner verify --verbose --print-certs`,
 выравнивание через `zipalign -c -P 16 4`, подпись AAB через `jarsigner -verify`,
 а также отсутствие `android:debuggable=true` в APK.
-Версия 0.1.11-prototype — предварительная, versionCode 12; при следующем обновлении versionCode должен увеличиться.
+Версия 0.2.0 использует versionCode 14; при следующем обновлении versionCode должен увеличиться.
