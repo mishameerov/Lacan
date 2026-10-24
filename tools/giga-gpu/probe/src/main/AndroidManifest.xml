@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <application android:label="GigaAM FP32 GPU probe" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false">
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <activity android:name=".ProbeActivity" android:exported="true" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

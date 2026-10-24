@@ -36,6 +36,7 @@ models/downloaded/
 *.ggml
 *.onnx
 *.onnx.data
+*.mnn
 *.safetensors
 *.pt
 *.pth
@@ -49,3 +50,12 @@ tmp/
 *.db-wal
 *.db-shm
 *.log
+
+# Local build tooling and downloaded upstream libraries
+.tools/
+.superpowers/
+app/libs/*.aar
+app/src/main/cpp/vendor/
+artifacts/
+
+app/libs/*.jar
