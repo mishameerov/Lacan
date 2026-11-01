@@ -44,4 +44,17 @@ class TargetPolicyTest {
         assertFalse(TargetPolicy.verifyInsertion("мир", 7, "привет кот", 10, 0))
         assertTrue(TargetPolicy.verifyInsertion("мир", 107, "вет мир", 7, 103))
     }
+    @Test fun clipboardPasteConfirmsCursorInsertionAndSelectionReplacement() {
+        assertTrue(TargetPolicy.verifyPaste("мир", "привет !", 7, 7, "привет мир!", 10, 10))
+        assertTrue(TargetPolicy.verifyPaste("мир", "привет кот!", 7, 10, "привет мир!", 10, 10))
+        assertTrue(TargetPolicy.verifyPaste("😀", "ab", 1, 1, "a😀b", 3, 3))
+    }
+    @Test fun clipboardPasteCannotConfirmMissingSnapshotOrUnchangedOrUnexpectedEdit() {
+        assertFalse(TargetPolicy.verifyPaste("мир", null, 7, 7, "привет мир!", 10, 10))
+        assertFalse(TargetPolicy.verifyPaste("мир", "привет !", -1, -1, "привет мир!", 10, 10))
+        assertFalse(TargetPolicy.verifyPaste("мир", "привет !", 7, 70, "привет мир!", 10, 10))
+        assertFalse(TargetPolicy.verifyPaste("мир", "привет !", 7, 7, "привет !", 7, 7))
+        assertFalse(TargetPolicy.verifyPaste("мир", "привет !", 7, 7, "привет мир?", 10, 10))
+        assertFalse(TargetPolicy.verifyPaste("мир", "привет !", 7, 7, "привет мир!", 9, 10))
+    }
 }

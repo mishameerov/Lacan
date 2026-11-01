@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.SolidColor
@@ -142,12 +145,12 @@ fun LacanScreen(
                 title = { Text("Очистить историю?") },
                 text = { Text("Все сохранённые расшифровки будут удалены с устройства.") },
                 confirmButton = {
-                    TextButton(onClick = { actions.clearHistory(); confirmClear = false }, modifier = Modifier.height(48.dp)) {
+                    TextButton(onClick = { actions.clearHistory(); confirmClear = false }, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text("Удалить всё", color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { confirmClear = false }, modifier = Modifier.height(48.dp)) { Text("Отмена") }
+                    TextButton(onClick = { confirmClear = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Отмена") }
                 }
             )
         }
@@ -186,7 +189,7 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = Accent, trackColor = SoftAccent)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(if (queued) "В очереди · ${(progress * 100).toInt()}%" else "${if (model.localImportSupported) "Импорт" else "Загрузка"} · ${(progress * 100).toInt()}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MutedInk)
-                            TextButton(onClick = { actions.cancelDownload(model.id) }, modifier = Modifier.height(48.dp)) { Text("Отменить") }
+                            TextButton(onClick = { actions.cancelDownload(model.id) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Отменить") }
                         }
                     } else {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -195,14 +198,14 @@ private fun ModelsContent(state: ScreenState, actions: UiActions) {
                                     if (model.selected) {
                                         Text("Выбрана", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Success, fontWeight = FontWeight.SemiBold)
                                     } else {
-                                        OutlinedButton(onClick = { actions.selectModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.weight(1f).height(48.dp)) { Text("Выбрать") }
+                                        OutlinedButton(onClick = { actions.selectModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Выбрать") }
                                     }
-                                    TextButton(onClick = { actions.removeModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null && !model.selected, modifier = Modifier.height(48.dp)) { Text("Удалить") }
+                                    TextButton(onClick = { actions.removeModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null && !model.selected, modifier = Modifier.heightIn(min = 48.dp)) { Text("Удалить") }
                                 }
-                                model.localImportSupported -> Button(onClick = { actions.importModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                                model.localImportSupported -> Button(onClick = { actions.importModel(model.id) }, enabled = !state.busy && !state.recording && state.downloadingId == null, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                                     Text("Импортировать .mnn")
                                 }
-                                model.downloadable -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                                model.downloadable -> Button(onClick = { actions.download(model.id) }, enabled = !state.busy && !state.recording, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                                     Text("Скачать")
                                 }
                             }
@@ -231,7 +234,7 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
             Column(Modifier.weight(1f)) {
                 Text("Сохранённые расшифровки хранятся на устройстве.", style = MaterialTheme.typography.bodyMedium, color = MutedInk)
             }
-            if (state.history.isNotEmpty()) TextButton(onClick = onClear, modifier = Modifier.height(48.dp)) { Text("Очистить") }
+            if (state.history.isNotEmpty()) TextButton(onClick = onClear, modifier = Modifier.heightIn(min = 48.dp)) { Text("Очистить") }
         }
         if (state.history.isEmpty()) EmptyCard("Здесь появятся завершённые диктовки.")
         state.history.forEach { item ->
@@ -240,8 +243,8 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
                     Text(item.text, modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Расшифровка, можно выделить и скопировать" }, style = MaterialTheme.typography.bodyLarge, color = Ink)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { actions.copy(item.text) }, modifier = Modifier.weight(1f).height(48.dp)) { Text("Копировать") }
-                    TextButton(onClick = { actions.deleteHistory(item.id) }, modifier = Modifier.weight(1f).height(48.dp)) { Text("Удалить") }
+                    OutlinedButton(onClick = { actions.copy(item.text) }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Копировать") }
+                    TextButton(onClick = { actions.deleteHistory(item.id) }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Удалить") }
                 }
             }
         }
@@ -250,14 +253,16 @@ private fun HistoryContent(state: ScreenState, actions: UiActions, onClear: () -
 
 @Composable
 private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: Appearance, onSetup: () -> Unit, onAppearance: (Appearance) -> Unit) {
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ContentCard(title = "Настройка Lacan", supporting = state.setupBlockReason() ?: "Всё готово для диктовки в других приложениях.") {
-            OutlinedButton(onClick = onSetup, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Открыть мастер настройки") }
+            OutlinedButton(onClick = onSetup, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Открыть мастер настройки") }
         }
         ContentCard(title = "Оформление") {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Appearance.entries.forEach { item ->
-                    androidx.compose.material3.FilterChip(selected = appearance == item, onClick = { onAppearance(item) }, label = { Text(item.title) }, modifier = Modifier.height(48.dp))
+                    androidx.compose.material3.FilterChip(selected = appearance == item, onClick = { onAppearance(item) }, label = { Text(item.title) }, modifier = Modifier.heightIn(min = 48.dp))
                 }
             }
         }
@@ -305,6 +310,17 @@ private fun SettingsContent(state: ScreenState, actions: UiActions, appearance: 
             LanguagePicker(state.language, enabled = !state.busy && !state.recording, onSelect = actions::setLanguage)
             Text("GigaAM Multilingual и Parakeet определяют язык автоматически.", style = MaterialTheme.typography.bodySmall, color = MutedInk)
         }
+        ContentCard(title = "Конфиденциальность") {
+            TextButton(onClick = {
+                try {
+                    uriHandler.openUri("https://mishameerov.github.io/Lacan/privacy/")
+                } catch (_: IllegalArgumentException) {
+                    android.widget.Toast.makeText(context, "Не удалось открыть браузер", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text("Политика конфиденциальности")
+            }
+        }
     }
 }
 
@@ -323,7 +339,7 @@ private fun PermissionRow(title: String, description: String, granted: Boolean, 
                 modifier = Modifier.size(24.dp)
             )
         }
-        if (!granted) TextButton(onClick = onAction, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+        if (!granted) TextButton(onClick = onAction, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(actionLabel, modifier = Modifier.fillMaxWidth())
         }
     }
@@ -339,7 +355,7 @@ private fun LanguagePicker(language: String, enabled: Boolean, onSelect: (String
                 onClick = { onSelect(value) },
                 enabled = enabled,
                 label = { Text(label) },
-                modifier = Modifier.height(48.dp)
+                modifier = Modifier.heightIn(min = 48.dp)
             )
         }
     }

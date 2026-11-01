@@ -99,7 +99,7 @@ class AppRuntime(private val context: Context) {
     fun refreshPermissions() {
         fun granted(permission: String) = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
         mutable.update { it.copy(microphoneGranted = granted(Manifest.permission.RECORD_AUDIO),
-            notificationsGranted = granted(Manifest.permission.POST_NOTIFICATIONS) && context.getSystemService(NotificationManager::class.java).areNotificationsEnabled() && context.getSystemService(NotificationManager::class.java).getNotificationChannel("dictation")?.importance != NotificationManager.IMPORTANCE_NONE, overlayGranted = Settings.canDrawOverlays(context),
+            notificationsGranted = (android.os.Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS)) && context.getSystemService(NotificationManager::class.java).areNotificationsEnabled() && context.getSystemService(NotificationManager::class.java).getNotificationChannel("dictation")?.importance != NotificationManager.IMPORTANCE_NONE, overlayGranted = Settings.canDrawOverlays(context),
             accessibilityEnabled = LacanAccessibilityService.instance != null) }
         refreshReadiness()
     }

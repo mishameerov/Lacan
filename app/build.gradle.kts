@@ -29,10 +29,10 @@ android {
     }
     defaultConfig {
         applicationId = "org.lacan"
-        minSdk = 33
+        minSdk = 31
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.2.0"
+        versionCode = 19
+        versionName = "0.2.2"
         testInstrumentationRunner = providers.gradleProperty("lacanTestRunner").getOrElse("androidx.test.runner.AndroidJUnitRunner")
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", "-DCMAKE_BUILD_TYPE=Release") } }

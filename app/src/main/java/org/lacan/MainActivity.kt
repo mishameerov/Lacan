@@ -87,6 +87,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermission(name: String) {
+        if (name == Manifest.permission.POST_NOTIFICATIONS && android.os.Build.VERSION.SDK_INT < 33) {
+            notificationSettings()
+            return
+        }
         if (checkSelfPermission(name) == PackageManager.PERMISSION_GRANTED) {
             if (name == Manifest.permission.POST_NOTIFICATIONS) notificationSettings() else appSettings()
             return
@@ -123,7 +127,14 @@ class MainActivity : ComponentActivity() {
         override fun microphone() = requestPermission(Manifest.permission.RECORD_AUDIO)
         override fun notifications() = requestPermission(Manifest.permission.POST_NOTIFICATIONS)
         override fun overlay() { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
-        override fun accessibility() { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        override fun accessibility() {
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Доступ к активному полю ввода")
+                .setMessage("Lacan использует службу специальных возможностей (AccessibilityService), чтобы определять активное текстовое поле, показывать панель диктовки и вставлять текст по вашему нажатию.\n\nСлужба получает сведения об активном приложении, поле и положении курсора. Для проверки вставки она читает текст рядом с курсором, а на Android 12 — доступный текст активного поля. Эти сведения обрабатываются только на устройстве, не отправляются на серверы и не сохраняются как история содержимого других приложений. Парольные поля исключаются из автоматической вставки.\n\nВы можете отказаться или отключить службу в настройках Android. Без этого доступа автоматическая вставка недоступна.")
+                .setPositiveButton("Согласен, открыть настройки") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                .setNegativeButton("Не сейчас", null)
+                .show()
+        }
         override fun setEnabled(value: Boolean) = runtime.setEnabled(value)
         override fun setRemoveHesitations(value: Boolean) = runtime.setRemoveHesitations(value)
         override fun setButtonColor(value: org.lacan.ui.DictationButtonColor) = runtime.setButtonColor(value)

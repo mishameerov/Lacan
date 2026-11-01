@@ -1,7 +1,7 @@
 package org.lacan.access
 
 /** Geometry and identity only: never retains a node or field text. */
-internal data class TargetFacts(
+data class TargetFacts(
     val packageName: String, val windowId: Int, val viewId: String?,
     val left: Int, val top: Int, val right: Int, val bottom: Int,
     val editable: Boolean, val enabled: Boolean, val visible: Boolean,
@@ -31,6 +31,14 @@ internal object TargetPolicy {
     // of the actual accessibility nodes, including fields without a resource ID.
     fun sameEditorAfterCommit(a: TargetFacts, b: TargetFacts): Boolean =
         a.packageName == b.packageName && a.windowId == b.windowId && a.viewId == b.viewId
+
+    /** Full snapshot plus cursor check for accessibility paste, including selected-text replacement. */
+    fun verifyPaste(inserted: String, beforeText: String?, start: Int, end: Int,
+                    afterText: String?, afterStart: Int, afterEnd: Int): Boolean =
+        inserted.isNotEmpty() && beforeText != null && afterText != null &&
+            start >= 0 && end >= start && end <= beforeText.length &&
+            afterStart.toLong() == start.toLong() + inserted.length && afterStart == afterEnd &&
+            afterText == beforeText.replaceRange(start, end, inserted)
 
     fun verifyInsertion(inserted: String, beforeCursor: Int, afterText: String,
                         afterSelection: Int, afterOffset: Int): Boolean =

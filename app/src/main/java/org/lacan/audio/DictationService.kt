@@ -29,7 +29,7 @@ class DictationService : Service() {
     override fun onCreate() {
         super.onCreate()
         handler.postDelayed(checkControls, 1000)
-        registerReceiver(lockReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), RECEIVER_NOT_EXPORTED)
+        androidx.core.content.ContextCompat.registerReceiver(this, lockReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL, "Диктовка", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Управление локальной записью"; setSound(null, null); lockscreenVisibility = Notification.VISIBILITY_SECRET

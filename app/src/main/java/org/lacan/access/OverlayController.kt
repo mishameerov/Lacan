@@ -1,10 +1,8 @@
 package org.lacan.access
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Handler
@@ -88,7 +86,7 @@ class OverlayController(private val context: Context) : AutoCloseable {
         lastState = state
         val permission = Settings.canDrawOverlays(context)
         if (!permission && state.recording &&
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            !state.notificationsGranted) {
             if (!controlLossReported) {
                 controlLossReported = true
                 runtime.stop("control_lost")

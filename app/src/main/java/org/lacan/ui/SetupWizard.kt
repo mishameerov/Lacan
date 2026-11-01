@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -119,9 +119,9 @@ internal fun SetupWizard(state: ScreenState, actions: UiActions, onDismiss: () -
                         }
                     }
                     if (step == SetupStep.Model && state.hasPendingSetupModel()) {
-                        Button(onClick = { modelStepPassed = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Далее") }
+                        Button(onClick = { modelStepPassed = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Далее") }
                     } else {
-                        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Позже") }
+                        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Позже") }
                     }
                 }
             }
@@ -133,5 +133,5 @@ internal fun SetupWizard(state: ScreenState, actions: UiActions, onDismiss: () -
 private fun SetupPermission(title: String, explanation: String, label: String, action: () -> Unit) {
     Text(title, style = MaterialTheme.typography.titleLarge)
     Text(explanation, style = MaterialTheme.typography.bodyLarge)
-    Button(onClick = action, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(label) }
+    Button(onClick = action, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(label) }
 }
